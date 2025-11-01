@@ -1,0 +1,142 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* CSS переменные для темной темы */
+:root.dark {
+  --bg-primary: #0f0f0f;
+  --bg-secondary: #1a1a1a;
+  --bg-card: #252525;
+  --bg-hover: #2d2d2d;
+  --border-color: #3a3a3a;
+  --text-primary: #ffffff;
+  --text-secondary: #a0a0a0;
+  --text-tertiary: #666666;
+  --primary: #3b82f6;
+  --primary-hover: #2563eb;
+  --warning: #facc15;
+  --warning-bg: rgba(202, 138, 4, 0.2);
+  --warning-border: rgba(202, 138, 4, 0.5);
+}
+
+/* CSS переменные для светлой темы */
+:root.light {
+  --bg-primary: #f9fafb;
+  --bg-secondary: #f3f4f6;
+  --bg-card: #ffffff;
+  --bg-hover: #e5e7eb;
+  --border-color: #d1d5db;
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-tertiary: #9ca3af;
+  --primary: #3b82f6;
+  --primary-hover: #2563eb;
+  --warning: #ea580c;
+  --warning-bg: rgba(234, 88, 12, 0.1);
+  --warning-border: rgba(234, 88, 12, 0.3);
+}
+
+/* По умолчанию светлая тема (можно переопределить через системные настройки) */
+:root {
+  --bg-primary: #f9fafb;
+  --bg-secondary: #f3f4f6;
+  --bg-card: #ffffff;
+  --bg-hover: #e5e7eb;
+  --border-color: #d1d5db;
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-tertiary: #9ca3af;
+  --primary: #3b82f6;
+  --primary-hover: #2563eb;
+  --warning: #ea580c;
+  --warning-bg: rgba(234, 88, 12, 0.1);
+  --warning-border: rgba(234, 88, 12, 0.3);
+}
+
+/* Плавная анимация перехода темы */
+* {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  min-height: 100vh;
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-primary hover:bg-primary-hover text-white font-medium py-2 px-4 rounded-lg transition-colors;
+  }
+
+  .btn-secondary {
+    @apply bg-bg-card hover:bg-bg-hover text-text-primary font-medium py-2 px-4 rounded-lg border border-border-color transition-colors;
+  }
+
+  .card {
+    @apply bg-bg-card border border-border-color rounded-lg p-4 hover:bg-bg-hover transition-colors;
+  }
+
+  .input {
+    @apply w-full bg-bg-card border border-border-color rounded-lg px-4 py-2 text-text-primary placeholder-text-tertiary focus:outline-none focus:border-primary transition-colors;
+  }
+}
+
+@keyframes slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes slide-out {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+@keyframes fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes progress {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.3s ease-out;
+}
+
+.animate-slide-out {
+  animation: slide-out 0.3s ease-in forwards;
+}
+
+.animate-fade-out {
+  animation: fade-out 0.2s ease-in forwards;
+}

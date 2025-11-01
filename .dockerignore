@@ -1,0 +1,41 @@
+# Frontend
+frontend/node_modules
+frontend/dist
+frontend/.env
+frontend/.DS_Store
+
+# Backend
+backend/__pycache__
+backend/**/__pycache__
+backend/**/**/__pycache__
+backend/.env
+backend/classroom.db
+backend/classroom.db-shm
+backend/classroom.db-wal
+backend/uploads/*
+backend/static
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Other
+.claude
+nginx
+README.md

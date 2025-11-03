@@ -6,16 +6,18 @@ from ..database import get_db
 from ..models.user import User
 from ..models.course import Course, CourseMember
 from ..models.assignment import Assignment, AssignmentFile
+from ..models.assignment_view import AssignmentView
 from ..models.submission import Submission
 from ..schemas.assignment import AssignmentCreate, AssignmentUpdate, AssignmentResponse
 from ..utils.auth import get_current_user
 from ..utils.file_upload import save_upload_file, delete_file
+from ..utils.websocket import manager
 
 router = APIRouter(prefix="/assignments", tags=["assignments"])
 
 
 @router.post("/courses/{course_id}/assignments", response_model=AssignmentResponse, status_code=status.HTTP_201_CREATED)
-def create_assignment(
+async def create_assignment(
     course_id: int,
     assignment_data: AssignmentCreate,
     current_user: User = Depends(get_current_user),
@@ -57,7 +59,18 @@ def create_assignment(
     db.commit()
     db.refresh(new_assignment)
 
-    return AssignmentResponse.model_validate(new_assignment)
+    assignment_response = AssignmentResponse.model_validate(new_assignment)
+
+    # Отправляем WebSocket уведомление всем участникам курса
+    await manager.broadcast_to_course(
+        course_id,
+        {
+            "type": "assignment_created",
+            "data": assignment_response.model_dump(mode='json')
+        }
+    )
+
+    return assignment_response
 
 
 @router.get("/courses/{course_id}/assignments", response_model=List[AssignmentResponse])
@@ -115,12 +128,19 @@ def get_my_assignments(
             Submission.is_deleted == 0  # Фильтруем удалённые сдачи
         ).order_by(Submission.submitted_at.desc()).first()
 
+        # Проверяем, прочитано ли задание студентом
+        is_read = db.query(AssignmentView).filter(
+            AssignmentView.assignment_id == assignment.id,
+            AssignmentView.user_id == current_user.id
+        ).first() is not None
+
         assignment_data = AssignmentResponse.model_validate(assignment).model_dump()
         assignment_data['course_title'] = course.title if course else None
         assignment_data['course_is_archived'] = course.is_archived if course else 0
         assignment_data['is_submitted'] = submission is not None
         assignment_data['is_graded'] = submission.score is not None if submission else False
         assignment_data['score'] = submission.score if submission else None
+        assignment_data['is_read'] = is_read
 
         result.append(assignment_data)
 
@@ -154,8 +174,56 @@ def get_assignment(
     return AssignmentResponse.model_validate(assignment)
 
 
+@router.post("/{assignment_id}/mark-read", status_code=status.HTTP_204_NO_CONTENT)
+def mark_assignment_as_read(
+    assignment_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Пометить задание как прочитанное студентом"""
+    assignment = db.query(Assignment).filter(Assignment.id == assignment_id).first()
+    if not assignment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Задание не найдено"
+        )
+
+    # Проверяем, что пользователь является участником курса
+    is_member = db.query(CourseMember).filter(
+        CourseMember.course_id == assignment.course_id,
+        CourseMember.user_id == current_user.id
+    ).first()
+
+    if not is_member:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Вы не являетесь участником этого курса"
+        )
+
+    # Проверяем пользователь != учитель
+    course = db.query(Course).filter(Course.id == assignment.course_id).first()
+    if course.creator_id == current_user.id:
+        return None
+
+    # Проверяем, не было ли уже помечено
+    existing_view = db.query(AssignmentView).filter(
+        AssignmentView.assignment_id == assignment_id,
+        AssignmentView.user_id == current_user.id
+    ).first()
+
+    if not existing_view:
+        view = AssignmentView(
+            assignment_id=assignment_id,
+            user_id=current_user.id
+        )
+        db.add(view)
+        db.commit()
+
+    return None
+
+
 @router.put("/{assignment_id}", response_model=AssignmentResponse)
-def update_assignment(
+async def update_assignment(
     assignment_id: int,
     assignment_data: AssignmentUpdate,
     current_user: User = Depends(get_current_user),
@@ -198,7 +266,18 @@ def update_assignment(
     db.commit()
     db.refresh(assignment)
 
-    return AssignmentResponse.model_validate(assignment)
+    assignment_response = AssignmentResponse.model_validate(assignment)
+
+    # Отправляем WebSocket уведомление всем участникам курса
+    await manager.broadcast_to_course(
+        assignment.course_id,
+        {
+            "type": "assignment_updated",
+            "data": assignment_response.model_dump(mode='json')
+        }
+    )
+
+    return assignment_response
 
 
 @router.post("/{assignment_id}/files", status_code=status.HTTP_201_CREATED)
@@ -284,7 +363,7 @@ def delete_assignment_file(
 
 
 @router.delete("/{assignment_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_assignment(
+async def delete_assignment(
     assignment_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -314,9 +393,21 @@ def delete_assignment(
     for file_record in assignment_files:
         delete_file(file_record.file_path)
 
+    # Сохраняем course_id для WebSocket уведомления
+    course_id = assignment.course_id
+
     # Удаляем задание из БД (каскадно удалятся все связанные записи)
     db.delete(assignment)
     db.commit()
+
+    # Отправляем WebSocket уведомление всем участникам курса
+    await manager.broadcast_to_course(
+        course_id,
+        {
+            "type": "assignment_deleted",
+            "data": {"assignment_id": assignment_id}
+        }
+    )
 
     return None
 

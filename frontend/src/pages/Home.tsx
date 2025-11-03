@@ -1,11 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
 import { CourseCard } from '../components/CourseCard';
 import { Modal } from '../components/Modal';
 import { getCourses, createCourse, joinCourse, getMyAssignments } from '../api/api';
 import { useAuthStore } from '../store/authStore';
-import type { Course } from '../types';
+import { useWebSocket } from '../hooks/useWebSocket';
+import { websocketService } from '../services/websocket';
+import type { Course, Assignment } from '../types';
 
 export const Home = () => {
   const [tab, setTab] = useState<'courses' | 'assignments' | 'archived'>('courses');
@@ -39,6 +41,36 @@ export const Home = () => {
       loadArchivedCourses();
     }
   }, [tab]);
+
+  // Подписываемся на все курсы пользователя
+  useEffect(() => {
+    if (courses.length > 0) {
+      // Подписываемся на каждый курс через websocketService
+      const subscribe = () => {
+        if (websocketService.isConnected()) {
+          courses.forEach(course => {
+            console.log('Subscribing to course (Home):', course.id);
+            websocketService.subscribeToCourse(course.id);
+          });
+        } else {
+          // Если еще не подключено, попробуем через 1 секунду
+          setTimeout(subscribe, 1000);
+        }
+      };
+
+      subscribe();
+
+      // Отписываемся при размонтировании или изменении курсов
+      return () => {
+        if (websocketService.isConnected()) {
+          courses.forEach(course => {
+            console.log('Unsubscribing from course (Home):', course.id);
+            websocketService.unsubscribeFromCourse(course.id);
+          });
+        }
+      };
+    }
+  }, [courses]);
 
   const loadCourses = async () => {
     try {
@@ -105,6 +137,49 @@ export const Home = () => {
       setError(err.response?.data?.detail || 'Курс не найден');
     }
   };
+
+  // Обработчик создания задания
+  const handleAssignmentCreated = useCallback((data: Assignment) => {
+    console.log('Assignment created (Home):', data);
+
+    if (tab === 'courses') {
+      loadCourses();
+    } else if (tab === 'assignments') {
+      const course = courses.find(c => c.id === data.course_id);
+      if (course && !course.is_creator) {
+        if (data.created_by !== useAuthStore.getState().user?.id) {
+          loadAssignments();
+        }
+      }
+    }
+  }, [courses, tab]);
+
+  // Обработчик обновления задания
+  const handleAssignmentUpdated = useCallback((data: Assignment) => {
+    console.log('Assignment updated (Home):', data);
+
+    if (tab === 'courses') {
+      loadCourses();
+    } else if (tab === 'assignments') {
+      loadAssignments();
+    }
+  }, [tab]);
+
+  // Обработчик удаления задания
+  const handleAssignmentDeleted = useCallback((data: { assignment_id: number }) => {
+    console.log('Assignment deleted (Home):', data);
+
+    if (tab === 'courses') {
+      loadCourses();
+    } else if (tab === 'assignments') {
+      setAssignments(prev => prev.filter(a => a.id !== data.assignment_id));
+    }
+  }, [tab]);
+
+  // Регистрируем WebSocket обработчики
+  useWebSocket('assignment_created', handleAssignmentCreated, [courses, tab]);
+  useWebSocket('assignment_updated', handleAssignmentUpdated, [tab]);
+  useWebSocket('assignment_deleted', handleAssignmentDeleted, [tab]);
 
   return (
     <div className="min-h-screen bg-bg-primary">
@@ -223,7 +298,14 @@ export const Home = () => {
                         >
                           <div className="flex justify-between items-start gap-4">
                             <div className="flex-1 min-w-0">
-                              <h3 className="text-lg font-semibold text-text-primary mb-1">{assignment.title}</h3>
+                              <div className="flex items-center gap-2 mb-1">
+                                <h3 className="text-lg font-semibold text-text-primary">{assignment.title}</h3>
+                                {!(assignment as any).is_read && (
+                                  <span className="flex-shrink-0 bg-primary/20 text-primary text-xs px-2 py-0.5 rounded-full font-medium">
+                                    Новое
+                                  </span>
+                                )}
+                              </div>
                               <p className="text-sm text-text-secondary mb-2">{assignment.course_title}</p>
                               <p className="text-sm text-text-tertiary line-clamp-2">{assignment.description}</p>
                             </div>

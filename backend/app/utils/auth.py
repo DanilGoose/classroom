@@ -86,3 +86,25 @@ def get_current_admin(current_user: User = Depends(get_current_user)) -> User:
             detail="Недостаточно прав доступа",
         )
     return current_user
+
+
+def verify_token(token: str) -> Optional[int]:
+    # Проверить токен и вернуть user_id (для WebSocket)
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_id_str = payload.get("sub")
+        if user_id_str is None:
+            return None
+        return int(user_id_str)
+    except (JWTError, ValueError, TypeError):
+        return None
+
+
+async def get_current_user_ws(token: str, db: Session) -> Optional[User]:
+    # Получить пользователя из токена (для WebSocket)
+    user_id = verify_token(token)
+    if not user_id:
+        return None
+
+    user = db.query(User).filter(User.id == user_id).first()
+    return user

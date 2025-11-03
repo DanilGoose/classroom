@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
 import { AccessDenied } from '../components/AccessDenied';
@@ -8,6 +8,7 @@ import { TeacherSubmissionsList } from '../components/assignment/TeacherSubmissi
 import { GradingForm } from '../components/assignment/GradingForm';
 import { AssignmentChat } from '../components/assignment/AssignmentChat';
 import { EditAssignmentModal } from '../components/assignment/EditAssignmentModal';
+import { useWebSocket, useAssignmentSubscription, useCourseSubscription } from '../hooks/useWebSocket';
 import {
   getAssignment,
   getMessages,
@@ -25,6 +26,8 @@ import {
   deleteSubmission,
   deleteAssignment,
   getMyAttemptsInfo,
+  markSubmissionViewed,
+  markAssignmentAsRead,
 } from '../api/api';
 import { useAuthStore } from '../store/authStore';
 import { useAlertStore } from '../store/alertStore';
@@ -80,6 +83,117 @@ export const AssignmentPage = () => {
   const isTeacher = !!(course && user && course.creator_id === user.id);
   const isArchived = !!(course && course.is_archived === 1);
 
+  // Подписываемся на WebSocket обновления задания
+  useAssignmentSubscription(id ? Number(id) : null);
+
+  // Подписываемся на обновления курса (для событий assignment_updated/deleted)
+  useCourseSubscription(course?.id || null);
+
+  // Обработчик новых сообщений в чате
+  const handleNewChatMessage = useCallback((data: Message) => {
+    console.log('New chat message received:', data);
+    setMessages((prev) => [...prev, data]);
+    setTimeout(() => scrollToBottom(), 100);
+  }, []);
+
+  // Обработчик удаления сообщения
+  const handleChatMessageDeleted = useCallback((data: { message_id: number }) => {
+    console.log('Chat message deleted:', data);
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === data.message_id
+          ? { ...msg, is_deleted: true, message: '[Deleted]' }
+          : msg
+      )
+    );
+  }, []);
+
+  // Обработчик новой сдачи работы
+  const handleSubmissionCreated = useCallback((data: Submission) => {
+    console.log('New submission created:', data);
+    if (isTeacher) {
+      setAllSubmissions((prev) => [data, ...prev]);
+    } else if (data.student_id === user?.id) {
+      setMySubmissions((prev) => [data, ...prev]);
+    }
+  }, [isTeacher, user]);
+
+  // Обработчик оценивания работы
+  const handleSubmissionGraded = useCallback((data: Submission) => {
+    console.log('Submission graded:', data);
+    if (isTeacher) {
+      setAllSubmissions((prev) =>
+        prev.map((sub) => (sub.id === data.id ? data : sub))
+      );
+    }
+    if (data.student_id === user?.id) {
+      setMySubmissions((prev) =>
+        prev.map((sub) => (sub.id === data.id ? data : sub))
+      );
+      addAlert(`Ваша работа оценена! Оценка: ${data.score}`, 'success');
+    }
+  }, [isTeacher, user, addAlert]);
+
+  // Обработчик удаления сдачи
+  const handleSubmissionDeleted = useCallback((data: { submission_id: number }) => {
+    console.log('Submission deleted:', data);
+    setAllSubmissions((prev) =>
+      prev.filter((sub) => sub.id !== data.submission_id)
+    );
+    setMySubmissions((prev) =>
+      prev.filter((sub) => sub.id !== data.submission_id)
+    );
+  }, []);
+
+  // Обработчик просмотра сдачи учителем
+  const handleSubmissionViewed = useCallback((data: Submission) => {
+    console.log('Submission viewed by teacher:', data);
+    if (data.student_id === user?.id) {
+      setMySubmissions((prev) =>
+        prev.map((sub) => (sub.id === data.id ? data : sub))
+      );
+    }
+    if (isTeacher) {
+      setAllSubmissions((prev) =>
+        prev.map((sub) => (sub.id === data.id ? data : sub))
+      );
+    }
+  }, [isTeacher, user]);
+
+  // Обработчик обновления задания
+  const handleAssignmentUpdated = useCallback((data: Assignment) => {
+    console.log('Assignment updated:', data);
+    // Проверяем, что это наше задание
+    if (data.id === Number(id)) {
+      setAssignment(data);
+      addAlert('Задание обновлено', 'info');
+    }
+  }, [id, addAlert]);
+
+  // Обработчик удаления задания
+  const handleAssignmentDeleted = useCallback((data: { assignment_id: number }) => {
+    console.log('Assignment deleted:', data);
+    // Проверяем, что это наше задание
+    if (data.assignment_id === Number(id)) {
+      addAlert('Задание было удалено', 'warning');
+      if (course?.id) {
+        navigate(`/courses/${course.id}`);
+      } else {
+        navigate('/');
+      }
+    }
+  }, [id, course, navigate, addAlert]);
+
+  // Подписываемся на WebSocket события
+  useWebSocket('chat_message', handleNewChatMessage, []);
+  useWebSocket('chat_message_deleted', handleChatMessageDeleted, []);
+  useWebSocket('submission_created', handleSubmissionCreated, [isTeacher, user]);
+  useWebSocket('submission_graded', handleSubmissionGraded, [isTeacher, user, addAlert]);
+  useWebSocket('submission_deleted', handleSubmissionDeleted, []);
+  useWebSocket('submission_viewed', handleSubmissionViewed, [isTeacher, user]);
+  useWebSocket('assignment_updated', handleAssignmentUpdated, [id, addAlert]);
+  useWebSocket('assignment_deleted', handleAssignmentDeleted, [id, course, navigate, addAlert]);
+
   useEffect(() => {
     if (id) {
       loadAssignment();
@@ -102,6 +216,15 @@ export const AssignmentPage = () => {
       // Load course info
       const courseData = await getCourse(data.course_id);
       setCourse(courseData);
+
+      // Помечаем задание как прочитанное (только для студентов)
+      if (courseData && user && courseData.creator_id !== user.id) {
+        try {
+          await markAssignmentAsRead(Number(id));
+        } catch (err) {
+          console.error('Failed to mark assignment as read:', err);
+        }
+      }
 
       // Сохраняем courseId для навигации кнопки "Назад"
       sessionStorage.setItem(`assignment_${id}_course`, String(data.course_id));
@@ -511,10 +634,21 @@ export const AssignmentPage = () => {
                 allSubmissions={allSubmissions}
                 assignment={assignment}
                 selectedSubmission={selectedSubmission}
-                onSelectSubmission={(submission) => {
+                onSelectSubmission={async (submission) => {
                   setSelectedSubmission(submission);
                   setGradeScore(submission.score?.toString() || '');
                   setGradeComment(submission.teacher_comment || '');
+
+                  // Помечаем сдачу как просмотренную учителем
+                  try {
+                    const updated = await markSubmissionViewed(submission.id);
+                    // Обновляем сдачу в списке
+                    setAllSubmissions(prev =>
+                      prev.map(s => s.id === updated.id ? updated : s)
+                    );
+                  } catch (err) {
+                    console.error('Failed to mark submission as viewed:', err);
+                  }
                 }}
                 formatDate={formatDate}
               />

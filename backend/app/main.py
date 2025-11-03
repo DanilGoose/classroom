@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse
 import os
 from pathlib import Path
 from .database import engine, Base
-from .routers import auth, courses, assignments, chat, admin, submissions
+from .routers import auth, courses, assignments, chat, admin, submissions, websocket
 from .config import settings
 
 # Создание таблиц
@@ -36,6 +36,9 @@ app.include_router(assignments.router, prefix="/api")
 app.include_router(submissions.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
+
+# WebSocket роутер (без префикса /api)
+app.include_router(websocket.router)
 
 # Статические файлы для загруженных файлов
 if os.path.exists(settings.UPLOAD_DIR):

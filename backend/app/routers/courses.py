@@ -341,9 +341,11 @@ def get_course_gradebook(
         gradebook[student["id"]] = {}
         for assignment in assignments:
             # Получаем все сдачи студента по этому заданию
+            # fix: удалённые сдачи не учитываются
             submissions = db.query(Submission).filter(
                 Submission.assignment_id == assignment.id,
-                Submission.student_id == student["id"]
+                Submission.student_id == student["id"],
+                Submission.is_deleted == 0  # Не учитываем удалённые сдачи
             ).order_by(Submission.submitted_at.desc()).all()
 
             if submissions:

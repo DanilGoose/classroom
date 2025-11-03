@@ -74,6 +74,7 @@ export interface Submission {
   teacher_comment: string | null;
   submitted_at: string;
   graded_at: string | null;
+  viewed_by_teacher: number; // 0 = не просмотрено, 1 = просмотрено
   files: SubmissionFile[];
   student_name: string | null;
 }

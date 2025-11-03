@@ -150,9 +150,21 @@ export const StudentSubmissionForm = ({
                     </p>
                   </div>
                 ) : (
-                  <div className="bg-warning-bg border border-warning-border rounded p-2 sm:p-3 space-y-2">
-                    <p className="text-warning text-xs sm:text-sm">Ожидает проверки</p>
-                    {!isArchived && (
+                  <div className="space-y-2">
+                    <div className="bg-warning-bg border border-warning-border rounded p-2 sm:p-3">
+                      <p className="text-warning text-xs sm:text-sm">Ожидает проверки</p>
+                    </div>
+
+                    {/* Плашка "Просмотрено учителем" */}
+                    {submission.viewed_by_teacher === 1 && (
+                      <div className="bg-blue-900/20 border border-blue-500/30 rounded p-2 sm:p-3">
+                        <p className="text-blue-400 text-xs sm:text-sm">
+                          👁️ Просмотрено преподавателем
+                        </p>
+                      </div>
+                    )}
+
+                    {!isArchived && submission.viewed_by_teacher === 0 && (
                       <button
                         onClick={() => onDeleteSubmission(submission.id)}
                         className="text-red-400 hover:text-red-300 text-xs"

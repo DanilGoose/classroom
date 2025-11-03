@@ -8,6 +8,7 @@ from ..models.assignment import Assignment
 from ..models.message import ChatMessage
 from ..schemas.message import MessageCreate, MessageResponse
 from ..utils.auth import get_current_user
+from ..utils.websocket import manager
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 
@@ -63,7 +64,7 @@ def get_assignment_messages(
 
 
 @router.post("/assignments/{assignment_id}/messages", response_model=MessageResponse, status_code=status.HTTP_201_CREATED)
-def send_message(
+async def send_message(
     assignment_id: int,
     message_data: MessageCreate,
     current_user: User = Depends(get_current_user),
@@ -100,7 +101,7 @@ def send_message(
     db.commit()
     db.refresh(new_message)
 
-    return MessageResponse(
+    message_response = MessageResponse(
         id=new_message.id,
         assignment_id=new_message.assignment_id,
         user_id=new_message.user_id,
@@ -110,9 +111,22 @@ def send_message(
         is_deleted=new_message.is_deleted
     )
 
+    # Отправляем WebSocket уведомление всем подписанным на задание
+    print(f"[Chat] Sending WebSocket broadcast for assignment {assignment_id}")
+    await manager.broadcast_to_assignment(
+        assignment_id,
+        {
+            "type": "chat_message",
+            "data": message_response.model_dump(mode='json')  # Конвертируем datetime в строки
+        }
+    )
+    print(f"[Chat] WebSocket broadcast completed")
+
+    return message_response
+
 
 @router.delete("/messages/{message_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_message(
+async def delete_message(
     message_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -139,5 +153,14 @@ def delete_message(
     message.is_deleted = True
     message.message = "[Deleted]"
     db.commit()
+
+    # Отправляем WebSocket уведомление об удалении
+    await manager.broadcast_to_assignment(
+        message.assignment_id,
+        {
+            "type": "chat_message_deleted",
+            "data": {"message_id": message_id}
+        }
+    )
 
     return None

@@ -12,10 +12,14 @@ import { CoursePage } from './pages/CoursePage';
 import { AssignmentPage } from './pages/AssignmentPage';
 import { AdminPanel } from './pages/AdminPanel';
 import { Profile } from './pages/Profile';
+import { useWebSocketInit } from './hooks/useWebSocketInit';
 
 function App() {
   const { initAuth, isAuthenticated, isLoading } = useAuthStore();
   const { theme } = useThemeStore();
+
+  // Инициализация WebSocket
+  useWebSocketInit();
 
   useEffect(() => {
     initAuth();

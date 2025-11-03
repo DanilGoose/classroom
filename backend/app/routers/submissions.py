@@ -17,12 +17,13 @@ from ..schemas.submission import (
 )
 from ..utils.auth import get_current_user
 from ..utils.file_upload import save_upload_file, delete_file
+from ..utils.websocket import manager
 
 router = APIRouter(prefix="/submissions", tags=["submissions"])
 
 
 @router.post("/assignments/{assignment_id}/submit", response_model=SubmissionResponse, status_code=status.HTTP_201_CREATED)
-def submit_assignment(
+async def submit_assignment(
     assignment_id: int,
     submission_data: SubmissionCreate,
     current_user: User = Depends(get_current_user),
@@ -75,6 +76,15 @@ def submit_assignment(
 
     response = SubmissionResponse.model_validate(new_submission)
     response.student_name = current_user.username
+
+    # Отправляем WebSocket уведомление
+    await manager.broadcast_to_assignment(
+        assignment_id,
+        {
+            "type": "submission_created",
+            "data": response.model_dump(mode='json')
+        }
+    )
 
     return response
 
@@ -167,6 +177,55 @@ def get_submission(
     response = SubmissionResponse.model_validate(submission)
     student = db.query(User).filter(User.id == submission.student_id).first()
     response.student_name = student.username if student else None
+
+    return response
+
+
+@router.post("/{submission_id}/mark-viewed", response_model=SubmissionResponse)
+async def mark_submission_viewed(
+    submission_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Пометить сдачу как просмотренную учителем"""
+    submission = db.query(Submission).filter(
+        Submission.id == submission_id,
+        Submission.is_deleted == 0
+    ).first()
+
+    if not submission:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Сдача не найдена"
+        )
+
+    assignment = db.query(Assignment).filter(Assignment.id == submission.assignment_id).first()
+    course = db.query(Course).filter(Course.id == assignment.course_id).first()
+
+    # Только учитель может помечать сдачи как просмотренные
+    if course.creator_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Только преподаватель может помечать сдачи как просмотренные"
+        )
+
+    if submission.viewed_by_teacher == 0:
+        submission.viewed_by_teacher = 1
+        db.commit()
+        db.refresh(submission)
+
+    response = SubmissionResponse.model_validate(submission)
+    student = db.query(User).filter(User.id == submission.student_id).first()
+    response.student_name = student.username if student else None
+
+    # Отправляем WebSocket уведомление студенту
+    await manager.broadcast_to_assignment(
+        assignment.id,
+        {
+            "type": "submission_viewed",
+            "data": response.model_dump(mode='json')
+        }
+    )
 
     return response
 
@@ -274,7 +333,7 @@ def get_my_submission(
 
 
 @router.put("/{submission_id}/grade", response_model=SubmissionResponse)
-def grade_submission(
+async def grade_submission(
     submission_id: int,
     grade_data: SubmissionGrade,
     current_user: User = Depends(get_current_user),
@@ -362,6 +421,24 @@ def grade_submission(
     student = db.query(User).filter(User.id == submission.student_id).first()
     response.student_name = student.username if student else None
 
+    # Отправляем WebSocket уведомление
+    await manager.broadcast_to_assignment(
+        submission.assignment_id,
+        {
+            "type": "submission_graded",
+            "data": response.model_dump(mode='json')
+        }
+    )
+
+    # Отправляем персональное уведомление студенту
+    await manager.send_to_user(
+        submission.student_id,
+        {
+            "type": "submission_graded_personal",
+            "data": response.model_dump(mode='json')
+        }
+    )
+
     return response
 
 
@@ -445,7 +522,7 @@ def delete_submission_file(
 
 
 @router.delete("/{submission_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_submission(
+async def delete_submission(
     submission_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
@@ -474,6 +551,13 @@ def delete_submission(
             detail="Невозможно удалить оцененную сдачу"
         )
 
+    # Нельзя удалить сдачу, если учитель уже просмотрел её
+    if submission.viewed_by_teacher == 1:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Невозможно удалить сдачу: она просмотрена учителем"
+        )
+
     # Получаем информацию о задании для проверки лимита попыток
     assignment = db.query(Assignment).filter(Assignment.id == submission.assignment_id).first()
 
@@ -500,8 +584,20 @@ def delete_submission(
                 detail="Невозможно удалить последнюю сдачу: попытки исчерпаны"
             )
 
+    # Сохраняем данные для WebSocket уведомления
+    assignment_id = submission.assignment_id
+
     # Мягкое удаление
     submission.is_deleted = 1
     db.commit()
+
+    # Отправляем WebSocket уведомление об удалении
+    await manager.broadcast_to_assignment(
+        assignment_id,
+        {
+            "type": "submission_deleted",
+            "data": {"submission_id": submission_id}
+        }
+    )
 
     return None

@@ -31,6 +31,7 @@ class SubmissionResponse(BaseModel):
     teacher_comment: Optional[str]
     submitted_at: datetime
     graded_at: Optional[datetime]
+    viewed_by_teacher: int = 0  # 0 = не просмотрено, 1 = просмотрено
     files: List[SubmissionFileResponse] = []
     student_name: Optional[str] = None
 

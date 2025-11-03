@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
 import { AccessDenied } from '../components/AccessDenied';
@@ -10,6 +10,7 @@ import { useConfirmStore } from '../store/confirmStore';
 import type { Course, Assignment, CourseMember } from '../types';
 import { Modal } from '../components/Modal';
 import { FileUploadZone } from '../components/FileUploadZone';
+import { useWebSocket, useCourseSubscription } from '../hooks/useWebSocket';
 
 export const CoursePage = () => {
   const { id } = useParams<{ id: string }>();
@@ -117,6 +118,37 @@ export const CoursePage = () => {
     }
   }, [tab]);
 
+  // Подписываемся на WebSocket обновления курса
+  useCourseSubscription(id ? Number(id) : null);
+
+  // Обработчик создания задания
+  const handleAssignmentCreated = useCallback((data: Assignment) => {
+    console.log('Assignment created:', data);
+    setAssignments((prev) => [data, ...prev]);
+    addAlert('Новое задание создано', 'success');
+  }, [addAlert]);
+
+  // Обработчик обновления задания
+  const handleAssignmentUpdated = useCallback((data: Assignment) => {
+    console.log('Assignment updated:', data);
+    setAssignments((prev) =>
+      prev.map((a) => a.id === data.id ? data : a)
+    );
+    addAlert('Задание обновлено', 'info');
+  }, [addAlert]);
+
+  // Обработчик удаления задания
+  const handleAssignmentDeleted = useCallback((data: { assignment_id: number }) => {
+    console.log('Assignment deleted:', data);
+    setAssignments((prev) => prev.filter((a) => a.id !== data.assignment_id));
+    addAlert('Задание удалено', 'info');
+  }, [addAlert]);
+
+  // Подписываемся на WebSocket события
+  useWebSocket('assignment_created', handleAssignmentCreated, [handleAssignmentCreated]);
+  useWebSocket('assignment_updated', handleAssignmentUpdated, [handleAssignmentUpdated]);
+  useWebSocket('assignment_deleted', handleAssignmentDeleted, [handleAssignmentDeleted]);
+
   const handleCreateAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -153,7 +185,6 @@ export const CoursePage = () => {
         }
       }
 
-      await loadAssignments();
       setCreateModalOpen(false);
       setTitle('');
       setDescription('');

@@ -135,6 +135,10 @@ export const deleteAssignment = async (assignmentId: number): Promise<void> => {
   await axios.delete(`/assignments/${assignmentId}`);
 };
 
+export const markAssignmentAsRead = async (assignmentId: number): Promise<void> => {
+  await axios.post(`/assignments/${assignmentId}/mark-read`);
+};
+
 export const getAssignmentUngradedSubmissions = async (assignmentId: number): Promise<Submission[]> => {
   const response = await axios.get(`/assignments/${assignmentId}/ungraded-submissions`);
   return response.data;
@@ -215,6 +219,11 @@ export const deleteSubmissionFile = async (
 
 export const deleteSubmission = async (submissionId: number): Promise<void> => {
   await axios.delete(`/submissions/${submissionId}`);
+};
+
+export const markSubmissionViewed = async (submissionId: number): Promise<Submission> => {
+  const response = await axios.post(`/submissions/${submissionId}/mark-viewed`);
+  return response.data;
 };
 
 export const getMyAttemptsInfo = async (assignmentId: number): Promise<{ total_attempts: number; max_attempts: number | null }> => {

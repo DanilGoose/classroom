@@ -16,6 +16,7 @@ class Submission(Base):
     submitted_at = Column(DateTime, default=datetime.utcnow)
     graded_at = Column(DateTime, nullable=True)
     is_deleted = Column(Integer, default=0)  # 0 = не удалено, 1 = удалено
+    viewed_by_teacher = Column(Integer, default=0)  # 0 = не просмотрено, 1 = просмотрено
 
     # Relationships
     assignment = relationship("Assignment", back_populates="submissions")

@@ -298,20 +298,21 @@ export const Home = () => {
                         >
                           <div className="flex justify-between items-start gap-4">
                             <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <h3 className="text-lg font-semibold text-text-primary">{assignment.title}</h3>
-                                {!(assignment as any).is_read && (
-                                  <span className="flex-shrink-0 bg-primary/20 text-primary text-xs px-2 py-0.5 rounded-full font-medium">
-                                    Новое
-                                  </span>
-                                )}
-                              </div>
+                              <h3 className="text-lg font-semibold text-text-primary mb-1">{assignment.title}</h3>
                               <p className="text-sm text-text-secondary mb-2">{assignment.course_title}</p>
                               <p className="text-sm text-text-tertiary line-clamp-2">{assignment.description}</p>
                             </div>
-                            <span className="flex-shrink-0 bg-warning-bg text-warning text-xs px-3 py-1 rounded-full">
-                              Не сдано
-                            </span>
+                            <div className="flex flex-col items-end gap-2">
+                              {!(assignment as any).is_read ? (
+                                <span className="flex-shrink-0 bg-warning-bg text-warning text-xs px-3 py-1 rounded-full">
+                                  Новое задание
+                                </span>
+                              ) : (
+                                <span className="flex-shrink-0 bg-red-900/30 text-red-400 text-xs px-3 py-1 rounded-full">
+                                  Не сдано
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </Link>
                       ))}
@@ -338,15 +339,15 @@ export const Home = () => {
                               <p className="text-sm text-text-secondary mb-2">{assignment.course_title}</p>
                               <p className="text-sm text-text-tertiary line-clamp-2">{assignment.description}</p>
                             </div>
-                            <div className="flex flex-col items-end gap-2">
-                              <span className={`flex-shrink-0 text-xs px-3 py-1 rounded-full ${
-                                assignment.is_graded
-                                  ? 'bg-green-900/30 text-green-400'
-                                  : 'bg-blue-900/30 text-blue-400'
-                              }`}>
-                                {assignment.is_graded ? `Оценка: ${assignment.score}` : 'Проверяется'}
+                            {assignment.is_graded ? (
+                              <span className="flex-shrink-0 bg-green-900/30 text-green-400 text-xs px-3 py-1 rounded-full">
+                                Оценка: {assignment.score}
                               </span>
-                            </div>
+                            ) : (
+                              <span className="flex-shrink-0 bg-blue-900/30 text-blue-400 text-xs px-3 py-1 rounded-full">
+                                На проверке
+                              </span>
+                            )}
                           </div>
                         </Link>
                       ))}

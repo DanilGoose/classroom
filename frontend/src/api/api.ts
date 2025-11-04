@@ -30,6 +30,11 @@ export const register = async (data: RegisterData): Promise<AuthResponse> => {
   return response.data;
 };
 
+export const getCurrentUser = async (): Promise<User> => {
+  const response = await axios.get('/auth/me');
+  return response.data;
+};
+
 export const updateProfile = async (data: { email?: string; username?: string }): Promise<User> => {
   const response = await axios.put('/auth/profile', data);
   return response.data;

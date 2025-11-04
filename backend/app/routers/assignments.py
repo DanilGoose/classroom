@@ -73,7 +73,7 @@ async def create_assignment(
     return assignment_response
 
 
-@router.get("/courses/{course_id}/assignments", response_model=List[AssignmentResponse])
+@router.get("/courses/{course_id}/assignments")
 def get_course_assignments(
     course_id: int,
     current_user: User = Depends(get_current_user),
@@ -90,8 +90,29 @@ def get_course_assignments(
             detail="Вы не являетесь участником этого курса"
         )
 
+    # Получаем курс для проверки, является ли текущий пользователь учителем
+    course = db.query(Course).filter(Course.id == course_id).first()
+    is_teacher = course.creator_id == current_user.id if course else False
+
     assignments = db.query(Assignment).filter(Assignment.course_id == course_id).order_by(Assignment.created_at.desc()).all()
-    return [AssignmentResponse.model_validate(a) for a in assignments]
+
+    result = []
+    for assignment in assignments:
+        assignment_dict = AssignmentResponse.model_validate(assignment).model_dump()
+
+        # Добавляем is_read только для студентов
+        if not is_teacher:
+            is_read = db.query(AssignmentView).filter(
+                AssignmentView.assignment_id == assignment.id,
+                AssignmentView.user_id == current_user.id
+            ).first() is not None
+            assignment_dict['is_read'] = is_read
+        else:
+            assignment_dict['is_read'] = True  # Для учителя все задания считаются прочитанными
+
+        result.append(assignment_dict)
+
+    return result
 
 
 # Все задания которые нужно выполнить пользователю

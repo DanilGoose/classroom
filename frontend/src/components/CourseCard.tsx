@@ -13,6 +13,20 @@ export const CourseCard = ({ course }: CourseCardProps) => {
 
   useEffect(() => {
     checkNewAssignments();
+
+    // Слушаем событие посещения задания для обновления счётчика
+    const handleAssignmentVisited = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail.courseId === course.id) {
+        checkNewAssignments();
+      }
+    };
+
+    window.addEventListener('assignment-visited', handleAssignmentVisited);
+
+    return () => {
+      window.removeEventListener('assignment-visited', handleAssignmentVisited);
+    };
   }, [course.id]);
 
   const checkNewAssignments = async () => {
@@ -25,12 +39,8 @@ export const CourseCard = ({ course }: CourseCardProps) => {
       // Получаем все задания курса
       const assignments = await getAssignments(course.id);
 
-      // Считаем количество непосещенных заданий
-      const newCount = assignments.filter(assignment => {
-        const visitKey = `assignment_${assignment.id}_visited`;
-        const hasVisited = localStorage.getItem(visitKey);
-        return !hasVisited;
-      }).length;
+      // Считаем количество непросмотренных заданий (is_read === false)
+      const newCount = assignments.filter(assignment => !assignment.is_read).length;
 
       setNewAssignmentsCount(newCount);
     } catch (err) {

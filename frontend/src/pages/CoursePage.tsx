@@ -149,6 +149,22 @@ export const CoursePage = () => {
   useWebSocket('assignment_updated', handleAssignmentUpdated, [handleAssignmentUpdated]);
   useWebSocket('assignment_deleted', handleAssignmentDeleted, [handleAssignmentDeleted]);
 
+  // Слушаем событие посещения задания для обновления плашек
+  useEffect(() => {
+    const handleAssignmentVisited = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail.courseId === Number(id)) {
+        loadAssignments();
+      }
+    };
+
+    window.addEventListener('assignment-visited', handleAssignmentVisited);
+
+    return () => {
+      window.removeEventListener('assignment-visited', handleAssignmentVisited);
+    };
+  }, [id]);
+
   const handleCreateAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');

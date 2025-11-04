@@ -4,7 +4,7 @@ import { useAuthStore } from '../store/authStore';
 import { updateProfile, updatePassword } from '../api/api';
 
 export const Profile = () => {
-  const { user, setAuth } = useAuthStore();
+  const { user, setUser } = useAuthStore();
 
   // Profile update states
   const [email, setEmail] = useState(user?.email || '');
@@ -29,11 +29,8 @@ export const Profile = () => {
 
     try {
       const updatedUser = await updateProfile({ email, username });
-      // Update user in store
-      const token = localStorage.getItem('token');
-      if (token) {
-        setAuth(token, updatedUser);
-      }
+      // Обновляем пользователя в store
+      setUser(updatedUser);
       setProfileSuccess('Профиль успешно обновлен');
     } catch (err: any) {
       setProfileError(err.response?.data?.detail || 'Ошибка обновления профиля');

@@ -61,6 +61,12 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
     )
 
 
+@router.get("/me", response_model=UserResponse)
+def get_current_user_info(current_user: User = Depends(get_current_user)):
+    """Получить информацию о текущем пользователе"""
+    return UserResponse.model_validate(current_user)
+
+
 @router.put("/profile", response_model=UserResponse)
 def update_profile(
     user_data: UserUpdate,

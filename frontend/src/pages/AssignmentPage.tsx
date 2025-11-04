@@ -221,6 +221,11 @@ export const AssignmentPage = () => {
       if (courseData && user && courseData.creator_id !== user.id) {
         try {
           await markAssignmentAsRead(Number(id));
+
+          // Отправляем событие об обновлении счётчика и плашек
+          window.dispatchEvent(new CustomEvent('assignment-visited', {
+            detail: { assignmentId: Number(id), courseId: data.course_id }
+          }));
         } catch (err) {
           console.error('Failed to mark assignment as read:', err);
         }

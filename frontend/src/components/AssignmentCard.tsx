@@ -11,12 +11,10 @@ interface AssignmentCardProps {
 export const AssignmentCard = ({ assignment, isTeacher }: AssignmentCardProps) => {
   const [submission, setSubmission] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  const [isNew, setIsNew] = useState(false);
 
   useEffect(() => {
     if (!isTeacher) {
       checkSubmissionStatus();
-      checkIfNew();
     }
   }, [assignment.id, isTeacher]);
 
@@ -32,19 +30,6 @@ export const AssignmentCard = ({ assignment, isTeacher }: AssignmentCardProps) =
       // Нет сдачи - это нормально
     } finally {
       setLoading(false);
-    }
-  };
-
-  const checkIfNew = () => {
-    const visitKey = `assignment_${assignment.id}_visited`;
-    const hasVisited = localStorage.getItem(visitKey);
-    setIsNew(!hasVisited);
-  };
-
-  const handleClick = () => {
-    // Отмечаем задание как посещенное
-    if (!isTeacher) {
-      localStorage.setItem(`assignment_${assignment.id}_visited`, 'true');
     }
   };
 
@@ -73,15 +58,15 @@ export const AssignmentCard = ({ assignment, isTeacher }: AssignmentCardProps) =
           </span>
         );
       }
-    } else if (isNew) {
-      // Новое задание
+    } else if (!assignment.is_read) {
+      // Новое задание (не просмотрено)
       return (
         <span className="flex-shrink-0 bg-warning-bg text-warning text-xs px-3 py-1 rounded-full">
           Новое задание
         </span>
       );
     } else {
-      // Не сдано
+      // Не сдано (просмотрено)
       return (
         <span className="flex-shrink-0 bg-red-900/30 text-red-400 text-xs px-3 py-1 rounded-full">
           Не сдано
@@ -93,7 +78,6 @@ export const AssignmentCard = ({ assignment, isTeacher }: AssignmentCardProps) =
   return (
     <Link
       to={`/assignments/${assignment.id}`}
-      onClick={handleClick}
       className="block card"
     >
       <div className="flex justify-between items-start gap-4">

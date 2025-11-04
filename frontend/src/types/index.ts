@@ -46,6 +46,7 @@ export interface Assignment {
   grade_options: string | null; // JSON string
   max_attempts: number | null; // null = неограниченно
   files: AssignmentFile[];
+  is_read?: boolean; // Просмотрено ли задание студентом
 }
 
 export interface AssignmentFile {

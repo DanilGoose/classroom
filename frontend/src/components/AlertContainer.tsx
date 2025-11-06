@@ -50,13 +50,13 @@ export const AlertContainer = () => {
   if (alerts.length === 0) return null;
 
   return (
-    <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-md">
+    <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 items-end">
       {alerts.map((alert) => (
         <div
           key={alert.id}
           className={`${getAlertStyles(alert.type)} border-2 rounded-lg shadow-lg ${
             alert.isExiting ? 'animate-slide-out' : 'animate-slide-in'
-          } flex flex-col overflow-hidden relative`}
+          } flex flex-col overflow-hidden relative max-w-md w-auto`}
         >
           {/* Progress bar */}
           {!alert.isExiting && (

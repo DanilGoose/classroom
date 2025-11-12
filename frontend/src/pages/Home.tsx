@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
 import { CourseCard } from '../components/CourseCard';
 import { Modal } from '../components/Modal';
@@ -27,10 +27,21 @@ export const Home = () => {
 
   const { isAuthenticated } = useAuthStore();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
     if (isAuthenticated) {
       loadCourses();
+
+      // Проверяем, есть ли параметр join в URL
+      const joinCode = searchParams.get('join');
+      if (joinCode) {
+        setCode(joinCode);
+        setJoinModalOpen(true);
+        // Убираем параметр из URL
+        searchParams.delete('join');
+        setSearchParams(searchParams);
+      }
     }
   }, [isAuthenticated]);
 

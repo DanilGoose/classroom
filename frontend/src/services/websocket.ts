@@ -22,7 +22,10 @@ class WebSocketService {
     this.isConnecting = true;
     this.token = token;
 
-    const wsUrl = import.meta.env.VITE_API_URL?.replace(/^http/, 'ws').replace('/api', '') || 'ws://localhost:8000';
+    // Определяем WebSocket URL на основе текущего протокола и хоста
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    const wsUrl = `${protocol}//${host}`;
     const url = `${wsUrl}/ws?token=${encodeURIComponent(token)}`;
 
     console.log('Connecting to WebSocket:', wsUrl);

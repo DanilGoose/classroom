@@ -1,4 +1,5 @@
 import type { Assignment } from '../../types';
+import { getFileUrl } from '../../api/axios';
 
 interface AssignmentDetailsProps {
   assignment: Assignment;
@@ -60,7 +61,7 @@ export const AssignmentDetails = ({
             {assignment.files.map((file) => (
               <div key={file.id} className="flex items-center justify-between">
                 <a
-                  href={`http://localhost:8000/${file.file_path}`}
+                  href={getFileUrl(file.file_path)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-primary hover:text-primary-hover text-sm"

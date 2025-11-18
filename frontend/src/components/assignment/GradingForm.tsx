@@ -1,4 +1,5 @@
 import type { Assignment, Submission } from '../../types';
+import { getFileUrl } from '../../api/axios';
 
 interface GradingFormProps {
   selectedSubmission: Submission;
@@ -42,7 +43,7 @@ export const GradingForm = ({
               {selectedSubmission.files.map((file) => (
                 <a
                   key={file.id}
-                  href={`http://localhost:8000/${file.file_path}`}
+                  href={getFileUrl(file.file_path)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-primary hover:text-primary-hover text-xs sm:text-sm break-all"

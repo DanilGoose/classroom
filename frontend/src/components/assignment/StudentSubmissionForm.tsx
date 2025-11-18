@@ -1,5 +1,6 @@
 import type { Assignment, Submission } from '../../types';
 import { FileUploadZone } from '../FileUploadZone';
+import { getFileUrl } from '../../api/axios';
 
 interface StudentSubmissionFormProps {
   assignment: Assignment;
@@ -112,7 +113,7 @@ export const StudentSubmissionForm = ({
                       {submission.files.map((file) => (
                         <div key={file.id} className="flex items-center justify-between">
                           <a
-                            href={`http://localhost:8000/${file.file_path}`}
+                            href={getFileUrl(file.file_path)}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-primary hover:text-primary-hover text-xs sm:text-sm break-all"

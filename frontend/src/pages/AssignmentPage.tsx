@@ -48,6 +48,7 @@ export const AssignmentPage = () => {
   const [loading, setLoading] = useState(true);
   const [accessDenied, setAccessDenied] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [uploading, setUploading] = useState(false);
 
@@ -285,7 +286,9 @@ export const AssignmentPage = () => {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim()) return;
+    if (!newMessage.trim() || isSendingMessage) return; 
+
+    setIsSendingMessage(true);
 
     try {
       const message = await sendMessage(Number(id), { message: newMessage });
@@ -294,6 +297,8 @@ export const AssignmentPage = () => {
       setTimeout(() => scrollToBottom(), 100);
     } catch (err) {
       addAlert('Ошибка отправки сообщения', 'error');
+    } finally {
+      setIsSendingMessage(false);
     }
   };
 
@@ -686,6 +691,7 @@ export const AssignmentPage = () => {
               hasMore={hasMore}
               loadingMore={loadingMore}
               isArchived={isArchived}
+              isSending={isSendingMessage}
               onSendMessage={handleSendMessage}
               onDeleteMessage={handleDeleteMessage}
               onLoadMore={handleLoadMore}

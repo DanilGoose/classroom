@@ -44,6 +44,7 @@ export const CoursePage = () => {
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [maxAttemptsEnabled, setMaxAttemptsEnabled] = useState(false);
   const [maxAttempts, setMaxAttempts] = useState(1);
+  const [isCreatingAssignment, setIsCreatingAssignment] = useState(false);
 
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
@@ -179,6 +180,7 @@ export const CoursePage = () => {
 
   const handleCreateAssignment = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isCreatingAssignment) return; 
     setError('');
 
     // Валидация для текстового типа оценки
@@ -186,6 +188,8 @@ export const CoursePage = () => {
       setError('Для текстовой оценки нужно минимум 2 варианта');
       return;
     }
+
+    setIsCreatingAssignment(true);
 
     try {
       const newAssignment = await createAssignment(Number(id), {
@@ -226,6 +230,8 @@ export const CoursePage = () => {
       setMaxAttempts(1);
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Ошибка создания задания');
+    } finally {
+      setIsCreatingAssignment(false);
     }
   };
 
@@ -836,8 +842,8 @@ export const CoursePage = () => {
             />
           </div>
 
-          <button type="submit" className="btn-primary w-full" disabled={uploadingFiles}>
-            {uploadingFiles ? 'Загрузка файлов...' : 'Создать'}
+          <button type="submit" className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed" disabled={isCreatingAssignment || uploadingFiles}>
+            {uploadingFiles ? 'Загрузка файлов...' : isCreatingAssignment ? 'Создание...' : 'Создать'}
           </button>
         </form>
       </Modal>

@@ -7,6 +7,7 @@ interface AssignmentChatProps {
   hasMore: boolean;
   loadingMore: boolean;
   isArchived: boolean;
+  isSending: boolean;
   onSendMessage: (e: React.FormEvent) => void;
   onDeleteMessage: (messageId: number) => void;
   onLoadMore: () => void;
@@ -22,6 +23,7 @@ export const AssignmentChat = ({
   hasMore,
   loadingMore,
   isArchived,
+  isSending,
   onSendMessage,
   onDeleteMessage,
   onLoadMore,
@@ -90,8 +92,8 @@ export const AssignmentChat = ({
               placeholder="Введите сообщение..."
               maxLength={200}
             />
-            <button type="submit" className="btn-primary text-xs sm:text-sm px-3 sm:px-4">
-              Отправить
+            <button type="submit" disabled={isSending || !newMessage.trim()} className="btn-primary text-xs sm:text-sm px-3 sm:px-4 disabled:opacity-50 disabled:cursor-not-allowed">
+              {isSending ? 'Отправка...' : 'Отправить'}
             </button>
           </form>
           {newMessage.length >= 200 && (

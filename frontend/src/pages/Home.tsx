@@ -24,6 +24,8 @@ export const Home = () => {
   const [description, setDescription] = useState('');
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
 
   const { isAuthenticated } = useAuthStore();
   const navigate = useNavigate();
@@ -120,7 +122,9 @@ export const Home = () => {
 
   const handleCreateCourse = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isCreating) return; 
     setError('');
+    setIsCreating(true);
 
     try {
       const newCourse = await createCourse({ title, description });
@@ -131,12 +135,17 @@ export const Home = () => {
       navigate(`/courses/${newCourse.id}`);
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Ошибка создания курса');
+    } finally {
+      setIsCreating(false);
     }
   };
 
   const handleJoinCourse = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isJoining) return; // Защита от двойного submit
+
     setError('');
+    setIsJoining(true);
 
     try {
       const course = await joinCourse({ code });
@@ -146,6 +155,8 @@ export const Home = () => {
       navigate(`/courses/${course.id}`);
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Курс не найден');
+    } finally {
+      setIsJoining(false);
     }
   };
 
@@ -418,8 +429,8 @@ export const Home = () => {
             )}
           </div>
 
-          <button type="submit" className="btn-primary w-full">
-            Создать
+          <button type="submit" disabled={isCreating} className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed">
+            {isCreating ? 'Создание...' : 'Создать'}
           </button>
         </form>
       </Modal>
@@ -455,8 +466,8 @@ export const Home = () => {
             </p>
           </div>
 
-          <button type="submit" className="btn-primary w-full">
-            Присоединиться
+          <button type="submit" disabled={isJoining} className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed">
+            {isJoining ? 'Присоединение...' : 'Присоединиться'}
           </button>
         </form>
       </Modal>

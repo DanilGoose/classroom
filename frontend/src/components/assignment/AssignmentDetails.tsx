@@ -26,7 +26,7 @@ export const AssignmentDetails = ({
   return (
     <div className="bg-bg-card rounded-lg p-4 sm:p-6 mb-4 sm:mb-6">
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-2">
-        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-text-primary break-words">
+        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-text-primary break-words min-w-0 flex-1">
           {assignment.title}
         </h1>
         {isTeacher && !isArchived && (

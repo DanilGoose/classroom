@@ -58,13 +58,13 @@ export const CourseCard = ({ course }: CourseCardProps) => {
         )}
         <div className="flex flex-col h-full justify-between">
           <div className="mb-2 sm:mb-3">
-            <h3 className="text-base sm:text-lg font-semibold text-text-primary mb-1 sm:mb-2 break-words">{course.title}</h3>
+            <h3 className="text-base sm:text-lg font-semibold text-text-primary mb-1 sm:mb-2 break-words line-clamp-3">{course.title}</h3>
             {newAssignmentsCount > 0 && (
               <p className="text-xs text-warning mb-1">
                 {newAssignmentsCount} {newAssignmentsCount === 1 ? 'непросмотренное задание' : newAssignmentsCount < 5 ? 'непросмотренных задания' : 'непросмотренных заданий'}
               </p>
             )}
-            <p className="text-xs sm:text-sm text-text-secondary line-clamp-2 break-words">
+            <p className="text-xs sm:text-sm text-text-secondary line-clamp-3 break-words">
               {course.description || 'Нет описания'}
             </p>
           </div>

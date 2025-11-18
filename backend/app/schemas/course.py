@@ -4,17 +4,17 @@ from typing import Optional
 
 
 class CourseCreate(BaseModel):
-    title: str
-    description: Optional[str] = Field(None, max_length=5000)
+    title: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=200)
 
 
 class CourseUpdate(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = Field(None, max_length=5000)
+    title: Optional[str] = Field(None, min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=200)
 
 
 class CourseJoin(BaseModel):
-    code: str
+    code: str = Field(..., min_length=1, max_length=20)
 
 
 class CourseResponse(BaseModel):

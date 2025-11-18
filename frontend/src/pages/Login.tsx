@@ -72,6 +72,7 @@ export const Login = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 className="input"
                 placeholder="email@example.com"
+                maxLength={254}
                 required
               />
             </div>
@@ -87,6 +88,7 @@ export const Login = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 className="input"
                 placeholder="••••••••"
+                maxLength={30}
                 required
               />
             </div>

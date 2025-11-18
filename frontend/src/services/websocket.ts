@@ -24,7 +24,13 @@ class WebSocketService {
 
     // Определяем WebSocket URL на основе текущего протокола и хоста
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
+    let host = window.location.host;
+
+    // В dev режиме (Vite на порту 5173) подключаемся к бэкенду на порту 8000
+    if (host.includes(':5173')) {
+      host = 'localhost:8000';
+    }
+
     const wsUrl = `${protocol}//${host}`;
     const url = `${wsUrl}/ws?token=${encodeURIComponent(token)}`;
 

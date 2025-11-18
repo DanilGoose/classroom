@@ -84,8 +84,12 @@ export const Register = () => {
                 onChange={(e) => setUsername(e.target.value)}
                 className="input"
                 placeholder="Иван Иванов"
+                maxLength={50}
                 required
               />
+              {username.length >= 50 && (
+                <p className="text-xs text-warning mt-1">Достигнут лимит по имени (50 символов)</p>
+              )}
             </div>
 
             <div>
@@ -99,6 +103,7 @@ export const Register = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 className="input"
                 placeholder="email@example.com"
+                maxLength={254}
                 required
               />
             </div>
@@ -114,8 +119,12 @@ export const Register = () => {
                 onChange={(e) => setPassword(e.target.value)}
                 className="input"
                 placeholder="••••••••"
+                maxLength={30}
                 required
               />
+              {password.length >= 30 && (
+                <p className="text-xs text-warning mt-1">Достигнут лимит по паролю (30 символов)</p>
+              )}
             </div>
 
             <div>
@@ -129,6 +138,7 @@ export const Register = () => {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 className="input"
                 placeholder="••••••••"
+                maxLength={30}
                 required
               />
             </div>

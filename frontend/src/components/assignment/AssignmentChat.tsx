@@ -30,7 +30,7 @@ export const AssignmentChat = ({
   messagesEndRef,
 }: AssignmentChatProps) => {
   return (
-    <div className="bg-bg-card rounded-lg p-4 sm:p-6 flex flex-col h-80 sm:h-96">
+    <div className="bg-bg-card rounded-lg p-4 sm:p-6 flex flex-col h-96 sm:h-[32rem]">
       <h3 className="text-sm sm:text-base lg:text-lg font-bold text-text-primary mb-3 sm:mb-4">Общий чат</h3>
 
       {hasMore && (
@@ -80,18 +80,24 @@ export const AssignmentChat = ({
       </div>
 
       {!isArchived && (
-        <form onSubmit={onSendMessage} className="flex gap-2">
-          <input
-            type="text"
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            className="input flex-1 text-sm"
-            placeholder="Введите сообщение..."
-          />
-          <button type="submit" className="btn-primary text-xs sm:text-sm px-3 sm:px-4">
-            Отправить
-          </button>
-        </form>
+        <div>
+          <form onSubmit={onSendMessage} className="flex gap-2">
+            <input
+              type="text"
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              className="input flex-1 text-sm"
+              placeholder="Введите сообщение..."
+              maxLength={200}
+            />
+            <button type="submit" className="btn-primary text-xs sm:text-sm px-3 sm:px-4">
+              Отправить
+            </button>
+          </form>
+          {newMessage.length >= 200 && (
+            <p className="text-xs text-warning mt-1">Достигнут лимит сообщения (200 символов)</p>
+          )}
+        </div>
       )}
     </div>
   );

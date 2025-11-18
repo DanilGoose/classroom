@@ -69,6 +69,7 @@ export const EditAssignmentModal = ({
             value={editTitle}
             onChange={(e) => setEditTitle(e.target.value)}
             className="input"
+            maxLength={200}
             required
           />
         </div>
@@ -79,6 +80,7 @@ export const EditAssignmentModal = ({
             value={editDescription}
             onChange={(e) => setEditDescription(e.target.value)}
             className="input h-24 resize-none"
+            maxLength={5000}
           />
         </div>
 
@@ -116,6 +118,8 @@ export const EditAssignmentModal = ({
                 onChange={(e) => setEditGradeMin(Number(e.target.value))}
                 className="input"
                 step="1"
+                min={-1000000}
+                max={1000000}
                 required
               />
             </div>
@@ -127,6 +131,8 @@ export const EditAssignmentModal = ({
                 onChange={(e) => setEditGradeMax(Number(e.target.value))}
                 className="input"
                 step="1"
+                min={-1000000}
+                max={1000000}
                 required
               />
             </div>
@@ -148,6 +154,7 @@ export const EditAssignmentModal = ({
                       setEditGradeOptions(newOptions);
                     }}
                     className="input flex-1"
+                    maxLength={100}
                     required
                   />
                   <button
@@ -168,6 +175,7 @@ export const EditAssignmentModal = ({
                 onChange={(e) => setEditTextGradeInput(e.target.value)}
                 className="input flex-1"
                 placeholder="Новый вариант оценки"
+                maxLength={100}
               />
               <button
                 type="button"
@@ -208,6 +216,7 @@ export const EditAssignmentModal = ({
                   onChange={(e) => setEditMaxAttempts(Math.max(1, Number(e.target.value)))}
                   className="input w-full"
                   min="1"
+                  max="1000"
                   required
                 />
                 <p className="text-xs text-text-tertiary mt-1">

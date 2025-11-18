@@ -67,8 +67,8 @@ export const GradingForm = ({
                 value={gradeScore}
                 onChange={(e) => setGradeScore(e.target.value)}
                 className="input w-full text-sm"
-                min={assignment.grade_min || 0}
-                max={assignment.grade_max || 100}
+                min={Math.max(0, assignment.grade_min || 0)}
+                max={assignment.grade_max || 1000000}
                 step="1"
                 required
                 disabled={isArchived}
@@ -116,8 +116,12 @@ export const GradingForm = ({
             onChange={(e) => setGradeComment(e.target.value)}
             className="input w-full h-20 sm:h-24 resize-none text-sm"
             placeholder="Комментарий для студента..."
+            maxLength={400}
             disabled={isArchived}
           />
+          {gradeComment.length >= 400 && (
+            <p className="text-xs text-warning mt-1">Достигнут лимит комментария (400 символов)</p>
+          )}
         </div>
 
         {!isArchived && (

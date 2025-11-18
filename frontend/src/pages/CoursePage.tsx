@@ -125,8 +125,12 @@ export const CoursePage = () => {
   const handleAssignmentCreated = useCallback((data: Assignment) => {
     console.log('Assignment created:', data);
     setAssignments((prev) => [data, ...prev]);
+    // Обновляем gradebook если он уже был загружен
+    if (course?.is_creator && gradebookData) {
+      loadGradebook();
+    }
     addAlert('Новое задание создано', 'success');
-  }, [addAlert]);
+  }, [addAlert, course?.is_creator, gradebookData]);
 
   // Обработчик обновления задания
   const handleAssignmentUpdated = useCallback((data: Assignment) => {
@@ -134,15 +138,23 @@ export const CoursePage = () => {
     setAssignments((prev) =>
       prev.map((a) => a.id === data.id ? data : a)
     );
+    // Обновляем gradebook если он уже был загружен
+    if (course?.is_creator && gradebookData) {
+      loadGradebook();
+    }
     addAlert('Задание обновлено', 'info');
-  }, [addAlert]);
+  }, [addAlert, course?.is_creator, gradebookData]);
 
   // Обработчик удаления задания
   const handleAssignmentDeleted = useCallback((data: { assignment_id: number }) => {
     console.log('Assignment deleted:', data);
     setAssignments((prev) => prev.filter((a) => a.id !== data.assignment_id));
+    // Обновляем gradebook если он уже был загружен
+    if (course?.is_creator && gradebookData) {
+      loadGradebook();
+    }
     addAlert('Задание удалено', 'info');
-  }, [addAlert]);
+  }, [addAlert, course?.is_creator, gradebookData]);
 
   // Подписываемся на WebSocket события
   useWebSocket('assignment_created', handleAssignmentCreated, [handleAssignmentCreated]);
@@ -314,7 +326,7 @@ export const CoursePage = () => {
       <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
         <div className="mb-4 sm:mb-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-0 mb-4">
-            <div className="flex-1">
+            <div className="flex-1 min-w-0">
               <h1 className="text-2xl sm:text-3xl font-bold text-text-primary break-words">{course.title}</h1>
               {course.is_archived === 1 && (
                 <p className="text-sm text-warning mt-2">
@@ -652,8 +664,12 @@ export const CoursePage = () => {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="input"
+              maxLength={200}
               required
             />
+            {title.length >= 200 && (
+              <p className="text-xs text-warning mt-1">Достигнут лимит по названию (200 символов)</p>
+            )}
           </div>
 
           <div>
@@ -663,7 +679,11 @@ export const CoursePage = () => {
               onChange={(e) => setDescription(e.target.value)}
               className="input"
               rows={3}
+              maxLength={5000}
             />
+            {description.length >= 5000 && (
+              <p className="text-xs text-warning mt-1">Достигнут лимит по описанию (5000 символов)</p>
+            )}
           </div>
 
           <div>
@@ -688,6 +708,8 @@ export const CoursePage = () => {
                   onChange={(e) => setGradeMin(Number(e.target.value))}
                   className="input"
                   step="1"
+                  min={0}
+                  max={1000000}
                   required
                 />
               </div>
@@ -699,6 +721,8 @@ export const CoursePage = () => {
                   onChange={(e) => setGradeMax(Number(e.target.value))}
                   className="input"
                   step="1"
+                  min={0}
+                  max={1000000}
                   required
                 />
               </div>
@@ -720,6 +744,7 @@ export const CoursePage = () => {
                         setGradeOptions(newOptions);
                       }}
                       className="input flex-1"
+                      maxLength={100}
                       required
                     />
                     <button
@@ -740,6 +765,7 @@ export const CoursePage = () => {
                   onChange={(e) => setTextGradeInput(e.target.value)}
                   className="input flex-1"
                   placeholder="Новый вариант оценки"
+                  maxLength={100}
                 />
                 <button
                   type="button"
@@ -780,6 +806,7 @@ export const CoursePage = () => {
                     onChange={(e) => setMaxAttempts(Math.max(1, Number(e.target.value)))}
                     className="input w-full"
                     min="1"
+                    max="1000"
                     required
                   />
                   <p className="text-xs text-text-tertiary mt-1">
@@ -830,6 +857,7 @@ export const CoursePage = () => {
               value={editTitle}
               onChange={(e) => setEditTitle(e.target.value)}
               className="input"
+              maxLength={200}
               required
             />
           </div>
@@ -841,7 +869,7 @@ export const CoursePage = () => {
               onChange={(e) => setEditDescription(e.target.value)}
               className="input"
               rows={3}
-              maxLength={5000}
+              maxLength={200}
             />
           </div>
 

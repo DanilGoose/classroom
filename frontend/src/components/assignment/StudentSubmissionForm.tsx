@@ -196,7 +196,11 @@ export const StudentSubmissionForm = ({
                 onChange={(e) => setSubmissionContent(e.target.value)}
                 className="input w-full h-24 sm:h-32 resize-none text-sm"
                 placeholder="Введите ваш ответ..."
+                maxLength={400}
               />
+              {submissionContent.length >= 400 && (
+                <p className="text-xs text-warning mt-1">Достигнут лимит текста ответа (400 символов)</p>
+              )}
             </div>
 
             <div>

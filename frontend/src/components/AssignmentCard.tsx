@@ -82,8 +82,8 @@ export const AssignmentCard = ({ assignment, isTeacher }: AssignmentCardProps) =
     >
       <div className="flex justify-between items-start gap-4">
         <div className="flex-1 min-w-0">
-          <h3 className="text-lg font-semibold text-text-primary mb-2">{assignment.title}</h3>
-          <p className="text-sm text-text-secondary mb-2">{assignment.description}</p>
+          <h3 className="text-lg font-semibold text-text-primary mb-2 line-clamp-2 lg:line-clamp-1">{assignment.title}</h3>
+          <p className="text-sm text-text-secondary mb-2 line-clamp-2">{assignment.description}</p>
           {assignment.due_date && (
             <p className="text-xs text-text-tertiary">
               Срок: {new Date(assignment.due_date).toLocaleDateString('ru-RU')}

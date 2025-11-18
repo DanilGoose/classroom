@@ -4,25 +4,25 @@ from typing import Optional, List, Literal
 
 
 class AssignmentCreate(BaseModel):
-    title: str
-    description: Optional[str] = None
+    title: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=5000)
     due_date: Optional[datetime] = None
     grading_type: Literal["numeric", "text"] = "numeric"
-    grade_min: Optional[int] = 2
-    grade_max: Optional[int] = 5
-    grade_options: Optional[List[str]] = None
-    max_attempts: Optional[int] = None  # None = неограниченно
+    grade_min: Optional[int] = Field(None, ge=-1000000, le=1000000)
+    grade_max: Optional[int] = Field(None, ge=-1000000, le=1000000)
+    grade_options: Optional[List[str]] = Field(None, max_length=50)
+    max_attempts: Optional[int] = Field(None, ge=1, le=1000)
 
 
 class AssignmentUpdate(BaseModel):
-    title: Optional[str] = None
-    description: Optional[str] = None
+    title: Optional[str] = Field(None, min_length=1, max_length=200)
+    description: Optional[str] = Field(None, max_length=5000)
     due_date: Optional[datetime] = None
     grading_type: Optional[Literal["numeric", "text"]] = None
-    grade_min: Optional[int] = None
-    grade_max: Optional[int] = None
-    grade_options: Optional[List[str]] = None
-    max_attempts: Optional[int] = None
+    grade_min: Optional[int] = Field(None, ge=-1000000, le=1000000)
+    grade_max: Optional[int] = Field(None, ge=-1000000, le=1000000)
+    grade_options: Optional[List[str]] = Field(None, max_length=50)
+    max_attempts: Optional[int] = Field(None, ge=1, le=1000)
 
 
 class AssignmentFileResponse(BaseModel):

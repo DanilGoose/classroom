@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional, List, Union
 
@@ -14,12 +14,12 @@ class SubmissionFileResponse(BaseModel):
 
 
 class SubmissionCreate(BaseModel):
-    content: Optional[str] = None
+    content: Optional[str] = Field(None, max_length=400)
 
 
 class SubmissionGrade(BaseModel):
-    score: Union[int, str]  # Поддержка числовых и текстовых оценок
-    teacher_comment: Optional[str] = None
+    score: Union[int, str]
+    teacher_comment: Optional[str] = Field(None, max_length=400)
 
 
 class SubmissionResponse(BaseModel):

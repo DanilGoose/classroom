@@ -393,8 +393,12 @@ export const Home = () => {
               onChange={(e) => setTitle(e.target.value)}
               className="input"
               placeholder="Математика 10 класс"
+              maxLength={200}
               required
             />
+            {title.length >= 200 && (
+              <p className="text-xs text-warning mt-1">Достигнут лимит по названию (200 символов)</p>
+            )}
           </div>
 
           <div>
@@ -406,9 +410,12 @@ export const Home = () => {
               onChange={(e) => setDescription(e.target.value)}
               className="input"
               rows={3}
-              maxLength={5000}
+              maxLength={200}
               placeholder="Описание курса..."
             />
+            {description.length >= 200 && (
+              <p className="text-xs text-warning mt-1">Достигнут лимит по описанию (200 символов)</p>
+            )}
           </div>
 
           <button type="submit" className="btn-primary w-full">
@@ -440,7 +447,7 @@ export const Home = () => {
               onChange={(e) => setCode(e.target.value.toUpperCase())}
               className="input font-mono"
               placeholder="ABCDEFGHI"
-              maxLength={9}
+              maxLength={20}
               required
             />
             <p className="text-xs text-text-tertiary mt-1">

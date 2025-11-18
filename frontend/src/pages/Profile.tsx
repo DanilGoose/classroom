@@ -92,6 +92,7 @@ export const Profile = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="input w-full"
+                  maxLength={254}
                   required
                 />
               </div>
@@ -105,6 +106,7 @@ export const Profile = () => {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   className="input w-full"
+                  maxLength={50}
                   required
                 />
               </div>
@@ -145,6 +147,7 @@ export const Profile = () => {
                   value={oldPassword}
                   onChange={(e) => setOldPassword(e.target.value)}
                   className="input w-full"
+                  maxLength={30}
                   required
                 />
               </div>
@@ -158,8 +161,9 @@ export const Profile = () => {
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
                   className="input w-full"
-                  required
                   minLength={6}
+                  maxLength={30}
+                  required
                 />
               </div>
 
@@ -172,8 +176,9 @@ export const Profile = () => {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   className="input w-full"
-                  required
                   minLength={6}
+                  maxLength={30}
+                  required
                 />
               </div>
 

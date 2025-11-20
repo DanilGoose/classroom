@@ -44,6 +44,7 @@ export const CoursePage = () => {
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [maxAttemptsEnabled, setMaxAttemptsEnabled] = useState(false);
   const [maxAttempts, setMaxAttempts] = useState(1);
+  const [dueDate, setDueDate] = useState('');
   const [isCreatingAssignment, setIsCreatingAssignment] = useState(false);
 
   const [editTitle, setEditTitle] = useState('');
@@ -195,6 +196,7 @@ export const CoursePage = () => {
       const newAssignment = await createAssignment(Number(id), {
         title,
         description,
+        due_date: dueDate ? new Date(dueDate).toISOString() : undefined,
         grading_type: gradingType,
         grade_min: gradingType === 'numeric' ? gradeMin : undefined,
         grade_max: gradingType === 'numeric' ? gradeMax : undefined,
@@ -220,6 +222,7 @@ export const CoursePage = () => {
       setCreateModalOpen(false);
       setTitle('');
       setDescription('');
+      setDueDate('');
       setGradingType('numeric');
       setGradeMin(2);
       setGradeMax(5);
@@ -495,10 +498,19 @@ export const CoursePage = () => {
                         </Link>
                         {assignment.due_date && (
                           <div className="text-[10px] sm:text-xs text-text-tertiary mt-1">
-                            {new Date(assignment.due_date).toLocaleDateString('ru-RU', {
-                              day: '2-digit',
-                              month: '2-digit',
-                            })}
+                            {(() => {
+                              const deadline = assignment.due_date;
+                              let deadlineDate: Date;
+                              if (deadline.endsWith('Z') || deadline.includes('+')) {
+                                deadlineDate = new Date(deadline);
+                              } else {
+                                deadlineDate = new Date(deadline + 'Z');
+                              }
+                              return deadlineDate.toLocaleDateString('ru-RU', {
+                                day: '2-digit',
+                                month: '2-digit',
+                              });
+                            })()}
                           </div>
                         )}
                       </th>
@@ -606,13 +618,22 @@ export const CoursePage = () => {
                     </span>
                   </div>
                   <p className="text-xs text-text-tertiary mb-2">
-                    Сдано: {new Date(submission.submitted_at).toLocaleString('ru-RU', {
-                      day: '2-digit',
-                      month: '2-digit',
-                      year: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
+                    Сдано: {(() => {
+                      const dateStr = submission.submitted_at;
+                      let date: Date;
+                      if (dateStr.endsWith('Z') || dateStr.includes('+')) {
+                        date = new Date(dateStr);
+                      } else {
+                        date = new Date(dateStr + 'Z');
+                      }
+                      return date.toLocaleString('ru-RU', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      });
+                    })()}
                   </p>
                   {submission.content && (
                     <div className="mt-3 p-3 bg-bg-primary rounded border border-border-color">
@@ -690,6 +711,19 @@ export const CoursePage = () => {
             {description.length >= 5000 && (
               <p className="text-xs text-warning mt-1">Достигнут лимит по описанию (5000 символов)</p>
             )}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-2">
+              Срок сдачи (необязательно)
+            </label>
+            <input
+              type="datetime-local"
+              value={dueDate}
+              onChange={(e) => setDueDate(e.target.value)}
+              min={new Date().toISOString().slice(0, 16)}
+              className="input"
+            />
           </div>
 
           <div>

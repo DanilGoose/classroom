@@ -477,6 +477,22 @@ async def upload_submission_file(
     db.commit()
     db.refresh(submission_file)
 
+    db.refresh(submission)
+    assignment = db.query(Assignment).filter(Assignment.id == submission.assignment_id).first()
+
+    response = SubmissionResponse.model_validate(submission)
+    student = db.query(User).filter(User.id == submission.student_id).first()
+    response.student_name = student.username if student else None
+
+    # Отправляем WebSocket уведомление об обновлении посылке
+    await manager.broadcast_to_assignment(
+        assignment.id,
+        {
+            "type": "submission_updated",
+            "data": response.model_dump(mode='json')
+        }
+    )
+
     return {
         "id": submission_file.id,
         "file_name": submission_file.file_name,
@@ -485,7 +501,7 @@ async def upload_submission_file(
 
 
 @router.delete("/{submission_id}/files/{file_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_submission_file(
+async def delete_submission_file(
     submission_id: int,
     file_id: int,
     current_user: User = Depends(get_current_user),
@@ -517,6 +533,22 @@ def delete_submission_file(
     # Удаление записи из БД
     db.delete(file_record)
     db.commit()
+
+    db.refresh(submission)
+    assignment = db.query(Assignment).filter(Assignment.id == submission.assignment_id).first()
+
+    response = SubmissionResponse.model_validate(submission)
+    student = db.query(User).filter(User.id == submission.student_id).first()
+    response.student_name = student.username if student else None
+
+    # Отправляем WebSocket уведомление об обновлении посылки
+    await manager.broadcast_to_assignment(
+        assignment.id,
+        {
+            "type": "submission_updated",
+            "data": response.model_dump(mode='json')
+        }
+    )
 
     return None
 

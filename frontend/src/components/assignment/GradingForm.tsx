@@ -1,5 +1,6 @@
 import type { Assignment, Submission } from '../../types';
 import { getFileUrl } from '../../api/axios';
+import { isSubmittedOnTime } from '../../utils/deadline';
 
 interface GradingFormProps {
   selectedSubmission: Submission;
@@ -22,11 +23,20 @@ export const GradingForm = ({
   isArchived,
   onSubmit,
 }: GradingFormProps) => {
+  const onTime = isSubmittedOnTime(selectedSubmission.submitted_at, assignment.due_date);
+
   return (
     <div className="bg-bg-card rounded-lg p-4 sm:p-6">
-      <h3 className="text-sm sm:text-base lg:text-lg font-bold text-text-primary mb-3 sm:mb-4 break-words">
-        Проверка: {selectedSubmission.student_name}
-      </h3>
+      <div className="mb-3 sm:mb-4">
+        <h3 className="text-sm sm:text-base lg:text-lg font-bold text-text-primary break-words">
+          Проверка: {selectedSubmission.student_name}
+        </h3>
+        {assignment.due_date && onTime !== null && (
+          <div className={`text-xs sm:text-sm mt-1 ${onTime ? 'text-green-400' : 'text-orange-400'}`}>
+            {onTime ? '✓ Сдано вовремя' : '⚠ Сдано с опозданием'}
+          </div>
+        )}
+      </div>
 
       <div className="space-y-3 sm:space-y-4 mb-3 sm:mb-4">
         <div>

@@ -8,6 +8,7 @@ import { useAuthStore } from '../store/authStore';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { websocketService } from '../services/websocket';
 import type { Course, Assignment } from '../types';
+import { getTimeRemaining } from '../utils/deadline';
 
 export const Home = () => {
   const [tab, setTab] = useState<'courses' | 'assignments' | 'archived'>('courses');
@@ -203,6 +204,23 @@ export const Home = () => {
   useWebSocket('assignment_updated', handleAssignmentUpdated, [tab]);
   useWebSocket('assignment_deleted', handleAssignmentDeleted, [tab]);
 
+  const sortAssignments = (assignments: any[]) => {
+    return [...assignments].sort((a, b) => {
+      if (a.due_date && b.due_date) {
+        const dateA = a.due_date.endsWith('Z') || a.due_date.includes('+')
+          ? new Date(a.due_date)
+          : new Date(a.due_date + 'Z');
+        const dateB = b.due_date.endsWith('Z') || b.due_date.includes('+')
+          ? new Date(b.due_date)
+          : new Date(b.due_date + 'Z');
+        return dateA.getTime() - dateB.getTime();
+      }
+      if (a.due_date && !b.due_date) return -1;
+      if (!a.due_date && b.due_date) return 1;
+      return 0;
+    });
+  };
+
   return (
     <div className="min-h-screen bg-bg-primary">
       <Navbar />
@@ -310,8 +328,7 @@ export const Home = () => {
                 <div>
                   <h2 className="text-xl font-semibold text-text-primary mb-4">Невыполненные ({assignments.filter(a => !a.is_submitted && a.course_is_archived !== 1).length})</h2>
                   <div className="space-y-3">
-                    {assignments
-                      .filter(a => !a.is_submitted && a.course_is_archived !== 1)
+                    {sortAssignments(assignments.filter(a => !a.is_submitted && a.course_is_archived !== 1))
                       .map((assignment) => (
                         <Link
                           key={assignment.id}
@@ -320,9 +337,41 @@ export const Home = () => {
                         >
                           <div className="flex justify-between items-start gap-4">
                             <div className="flex-1 min-w-0">
-                              <h3 className="text-lg font-semibold text-text-primary mb-1">{assignment.title}</h3>
-                              <p className="text-sm text-text-secondary mb-2">{assignment.course_title}</p>
-                              <p className="text-sm text-text-tertiary line-clamp-2">{assignment.description}</p>
+                              <h3 className="text-lg font-semibold text-text-primary mb-1 line-clamp-1 break-words">{assignment.title}</h3>
+                              <p className="text-sm text-text-secondary mb-2 truncate">{assignment.course_title}</p>
+                              <p className="text-sm text-text-tertiary line-clamp-2 break-words">{assignment.description}</p>
+                              {assignment.due_date && (() => {
+                                const deadline = assignment.due_date;
+                                let deadlineDate: Date;
+                                if (deadline.endsWith('Z') || deadline.includes('+')) {
+                                  deadlineDate = new Date(deadline);
+                                } else {
+                                  deadlineDate = new Date(deadline + 'Z');
+                                }
+
+                                const formattedDate = deadlineDate.toLocaleString('ru-RU', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                });
+
+                                const timeRemaining = getTimeRemaining(deadline);
+                                let colorClass = 'text-text-secondary';
+                                if (timeRemaining.isExpired) {
+                                  colorClass = 'text-red-400 font-semibold';
+                                } else if (timeRemaining.isUrgent) {
+                                  colorClass = 'text-red-400 font-semibold';
+                                }
+
+                                return (
+                                  <p className={`text-xs mt-1 break-words ${colorClass}`}>
+                                    Срок: {formattedDate}
+                                    {timeRemaining.isUrgent && !timeRemaining.isExpired && ' ⚠️'}
+                                  </p>
+                                );
+                              })()}
                             </div>
                             <div className="flex flex-col items-end gap-2">
                               {!(assignment as any).is_read ? (
@@ -347,8 +396,7 @@ export const Home = () => {
                 <div>
                   <h2 className="text-xl font-semibold text-text-primary mb-4">Выполненные ({assignments.filter(a => a.is_submitted).length})</h2>
                   <div className="space-y-3">
-                    {assignments
-                      .filter(a => a.is_submitted)
+                    {sortAssignments(assignments.filter(a => a.is_submitted))
                       .map((assignment) => (
                         <Link
                           key={assignment.id}
@@ -357,9 +405,41 @@ export const Home = () => {
                         >
                           <div className="flex justify-between items-start gap-4">
                             <div className="flex-1 min-w-0">
-                              <h3 className="text-lg font-semibold text-text-primary mb-1">{assignment.title}</h3>
-                              <p className="text-sm text-text-secondary mb-2">{assignment.course_title}</p>
-                              <p className="text-sm text-text-tertiary line-clamp-2">{assignment.description}</p>
+                              <h3 className="text-lg font-semibold text-text-primary mb-1 line-clamp-1 break-words">{assignment.title}</h3>
+                              <p className="text-sm text-text-secondary mb-2 truncate">{assignment.course_title}</p>
+                              <p className="text-sm text-text-tertiary line-clamp-2 break-words">{assignment.description}</p>
+                              {assignment.due_date && (() => {
+                                const deadline = assignment.due_date;
+                                let deadlineDate: Date;
+                                if (deadline.endsWith('Z') || deadline.includes('+')) {
+                                  deadlineDate = new Date(deadline);
+                                } else {
+                                  deadlineDate = new Date(deadline + 'Z');
+                                }
+
+                                const formattedDate = deadlineDate.toLocaleString('ru-RU', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                });
+
+                                const timeRemaining = getTimeRemaining(deadline);
+                                let colorClass = 'text-text-secondary';
+                                if (timeRemaining.isExpired) {
+                                  colorClass = 'text-red-400 font-semibold';
+                                } else if (timeRemaining.isUrgent) {
+                                  colorClass = 'text-red-400 font-semibold';
+                                }
+
+                                return (
+                                  <p className={`text-xs mt-1 break-words ${colorClass}`}>
+                                    Срок: {formattedDate}
+                                    {timeRemaining.isUrgent && !timeRemaining.isExpired && ' ⚠️'}
+                                  </p>
+                                );
+                              })()}
                             </div>
                             {assignment.is_graded ? (
                               <span className="flex-shrink-0 bg-green-900/30 text-green-400 text-xs px-3 py-1 rounded-full">

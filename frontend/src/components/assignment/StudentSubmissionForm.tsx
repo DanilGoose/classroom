@@ -1,6 +1,7 @@
 import type { Assignment, Submission } from '../../types';
 import { FileUploadZone } from '../FileUploadZone';
 import { getFileUrl } from '../../api/axios';
+import { isSubmittedOnTime } from '../../utils/deadline';
 
 interface StudentSubmissionFormProps {
   assignment: Assignment;
@@ -88,13 +89,26 @@ export const StudentSubmissionForm = ({
                 key={submission.id}
                 className="p-3 sm:p-4 rounded border border-border-color bg-bg-primary"
               >
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-1 sm:gap-0 mb-2 sm:mb-3">
-                  <span className="text-xs sm:text-sm font-medium text-text-primary">
-                    Попытка #{mySubmissions.length - index}
-                  </span>
-                  <span className="text-[10px] sm:text-xs text-text-tertiary">
-                    {formatDate(submission.submitted_at)}
-                  </span>
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1 sm:gap-2 mb-2 sm:mb-3">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs sm:text-sm font-medium text-text-primary">
+                        Попытка #{mySubmissions.length - index}
+                      </span>
+                      {assignment.due_date && (() => {
+                        const onTime = isSubmittedOnTime(submission.submitted_at, assignment.due_date);
+                        if (onTime === null) return null;
+                        return (
+                          <span className={`text-[10px] sm:text-xs ${onTime ? 'text-green-400' : 'text-orange-400'}`}>
+                            {onTime ? '✓ Вовремя' : '⚠ С опозданием'}
+                          </span>
+                        );
+                      })()}
+                    </div>
+                    <span className="text-[10px] sm:text-xs text-text-tertiary block mt-0.5">
+                      {formatDate(submission.submitted_at)}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Текст ответа */}

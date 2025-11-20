@@ -89,9 +89,10 @@ export const EditAssignmentModal = ({
             Срок сдачи (необязательно)
           </label>
           <input
-            type="date"
+            type="datetime-local"
             value={editDueDate}
             onChange={(e) => setEditDueDate(e.target.value)}
+            min={new Date().toISOString().slice(0, 16)}
             className="input"
           />
         </div>

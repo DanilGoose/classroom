@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import type { Assignment } from '../types';
 import { getMySubmission } from '../api/api';
+import { getTimeRemaining } from '../utils/deadline';
 
 interface AssignmentCardProps {
   assignment: Assignment;
@@ -84,11 +85,38 @@ export const AssignmentCard = ({ assignment, isTeacher }: AssignmentCardProps) =
         <div className="flex-1 min-w-0">
           <h3 className="text-lg font-semibold text-text-primary mb-2 line-clamp-2 lg:line-clamp-1">{assignment.title}</h3>
           <p className="text-sm text-text-secondary mb-2 line-clamp-2">{assignment.description}</p>
-          {assignment.due_date && (
-            <p className="text-xs text-text-tertiary">
-              Срок: {new Date(assignment.due_date).toLocaleDateString('ru-RU')}
-            </p>
-          )}
+          {assignment.due_date && (() => {
+            const deadline = assignment.due_date;
+            let deadlineDate: Date;
+            if (deadline.endsWith('Z') || deadline.includes('+')) {
+              deadlineDate = new Date(deadline);
+            } else {
+              deadlineDate = new Date(deadline + 'Z');
+            }
+
+            const formattedDate = deadlineDate.toLocaleString('ru-RU', {
+              day: '2-digit',
+              month: '2-digit',
+              year: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit',
+            });
+
+            const timeRemaining = getTimeRemaining(deadline);
+            let colorClass = 'text-text-secondary';
+            if (timeRemaining.isExpired) {
+              colorClass = 'text-red-400 font-semibold';
+            } else if (timeRemaining.isUrgent) {
+              colorClass = 'text-red-400 font-semibold';
+            }
+
+            return (
+              <p className={`text-xs ${colorClass}`}>
+                Срок: {formattedDate}
+                {timeRemaining.isUrgent && !timeRemaining.isExpired && ' ⚠️'}
+              </p>
+            );
+          })()}
         </div>
         {getBadge()}
       </div>

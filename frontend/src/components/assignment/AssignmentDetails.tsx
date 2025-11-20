@@ -1,5 +1,6 @@
 import type { Assignment } from '../../types';
 import { getFileUrl } from '../../api/axios';
+import { DeadlineDisplay } from '../DeadlineDisplay';
 
 interface AssignmentDetailsProps {
   assignment: Assignment;
@@ -51,6 +52,14 @@ export const AssignmentDetails = ({
       <p className="text-sm sm:text-base text-text-secondary mb-3 sm:mb-4 break-words">
         {assignment.description}
       </p>
+
+      {assignment.due_date && (
+        <DeadlineDisplay
+          deadline={assignment.due_date}
+          showCountdown={!isTeacher}
+          className="mb-3 sm:mb-4"
+        />
+      )}
 
       {assignment.files && assignment.files.length > 0 && (
         <div className="mb-4">

@@ -135,6 +135,21 @@ export const AssignmentPage = () => {
     }
   }, [isTeacher, user, addAlert]);
 
+  // Обработчик обновления сдачи
+  const handleSubmissionUpdated = useCallback((data: Submission) => {
+    console.log('Submission updated:', data);
+    if (isTeacher) {
+      setAllSubmissions((prev) =>
+        prev.map((sub) => (sub.id === data.id ? data : sub))
+      );
+    }
+    if (data.student_id === user?.id) {
+      setMySubmissions((prev) =>
+        prev.map((sub) => (sub.id === data.id ? data : sub))
+      );
+    }
+  }, [isTeacher, user]);
+
   // Обработчик удаления сдачи
   const handleSubmissionDeleted = useCallback((data: { submission_id: number }) => {
     console.log('Submission deleted:', data);
@@ -189,6 +204,7 @@ export const AssignmentPage = () => {
   useWebSocket('chat_message', handleNewChatMessage, []);
   useWebSocket('chat_message_deleted', handleChatMessageDeleted, []);
   useWebSocket('submission_created', handleSubmissionCreated, [isTeacher, user]);
+  useWebSocket('submission_updated', handleSubmissionUpdated, [isTeacher, user]);
   useWebSocket('submission_graded', handleSubmissionGraded, [isTeacher, user, addAlert]);
   useWebSocket('submission_deleted', handleSubmissionDeleted, []);
   useWebSocket('submission_viewed', handleSubmissionViewed, [isTeacher, user]);
@@ -512,7 +528,18 @@ export const AssignmentPage = () => {
     if (!assignment) return;
     setEditTitle(assignment.title);
     setEditDescription(assignment.description || '');
-    setEditDueDate(assignment.due_date ? assignment.due_date.split('T')[0] : '');
+    // Преобразуем UTC datetime в локальное время для datetime-local input
+    if (assignment.due_date) {
+      const localDate = new Date(assignment.due_date);
+      const year = localDate.getFullYear();
+      const month = String(localDate.getMonth() + 1).padStart(2, '0');
+      const day = String(localDate.getDate()).padStart(2, '0');
+      const hours = String(localDate.getHours()).padStart(2, '0');
+      const minutes = String(localDate.getMinutes()).padStart(2, '0');
+      setEditDueDate(`${year}-${month}-${day}T${hours}:${minutes}`);
+    } else {
+      setEditDueDate('');
+    }
     setEditGradingType(assignment.grading_type);
     setEditGradeMin(assignment.grade_min || 2);
     setEditGradeMax(assignment.grade_max || 5);
@@ -557,7 +584,7 @@ export const AssignmentPage = () => {
       const updatedAssignment = await updateAssignment(Number(id), {
         title: editTitle,
         description: editDescription,
-        due_date: editDueDate || undefined,
+        due_date: editDueDate ? new Date(editDueDate).toISOString() : undefined,
         grading_type: editGradingType,
         grade_min: editGradingType === 'numeric' ? editGradeMin : undefined,
         grade_max: editGradingType === 'numeric' ? editGradeMax : undefined,
@@ -573,7 +600,13 @@ export const AssignmentPage = () => {
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
+    // Парсим как UTC и конвертируем в локальное время
+    let date: Date;
+    if (dateString.endsWith('Z') || dateString.includes('+')) {
+      date = new Date(dateString);
+    } else {
+      date = new Date(dateString + 'Z');
+    }
     return date.toLocaleString('ru-RU', {
       day: '2-digit',
       month: '2-digit',

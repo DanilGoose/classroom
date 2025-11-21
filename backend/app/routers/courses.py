@@ -71,6 +71,13 @@ def join_course(
             detail="Курс не найден"
         )
 
+    # Нельзя присоединиться к архивному курсу
+    if course.is_archived == 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Невозможно присоединиться к архивному курсу"
+        )
+
     # Проверка, не является ли пользователь уже участником
     existing_member = db.query(CourseMember).filter(
         CourseMember.course_id == course.id,
@@ -256,6 +263,13 @@ def remove_course_member(
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Только создатель курса может удалять участников"
+        )
+
+    # Нельзя удалять участников из архивного курса
+    if course.is_archived == 1:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Невозможно удалить участника из архивного курса"
         )
 
     # Нельзя удалить самого создателя

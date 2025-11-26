@@ -128,7 +128,7 @@ export const StudentSubmissionForm = ({
                         <div key={file.id} className="flex items-center justify-between">
                           <a
                             href={getFileUrl(file.file_path)}
-                            target="_blank"
+                            download={file.file_name}
                             rel="noopener noreferrer"
                             className="text-primary hover:text-primary-hover text-xs sm:text-sm break-all"
                           >

@@ -264,3 +264,13 @@ export const getCourseUngradedSubmissions = async (courseId: number): Promise<an
   const response = await axios.get(`/courses/${courseId}/ungraded-submissions`);
   return response.data;
 };
+
+export const getCourseMembersAdmin = async (courseId: number): Promise<CourseMember[]> => {
+  const response = await axios.get(`/admin/courses/${courseId}/members`);
+  return response.data;
+};
+
+export const getCourseAssignmentsAdmin = async (courseId: number): Promise<Assignment[]> => {
+  const response = await axios.get(`/admin/courses/${courseId}/assignments`);
+  return response.data;
+};

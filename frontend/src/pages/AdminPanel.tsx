@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Navbar } from '../components/Navbar';
-import { getAllUsers, getAllCourses, deleteUser, deleteCourse } from '../api/api';
+import { getAllUsers, getAllCourses, deleteUser, deleteCourse, getCourseMembersAdmin, getCourseAssignmentsAdmin } from '../api/api';
 import { useAlertStore } from '../store/alertStore';
 import { useConfirmStore } from '../store/confirmStore';
-import type { User, Course } from '../types';
+import type { User, Course, CourseMember, Assignment } from '../types';
 
 export const AdminPanel = () => {
   const { addAlert } = useAlertStore();
@@ -12,6 +12,9 @@ export const AdminPanel = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [loading, setLoading] = useState(true);
+  const [expandedCourses, setExpandedCourses] = useState<Set<number>>(new Set());
+  const [courseMembers, setCourseMembers] = useState<Map<number, CourseMember[]>>(new Map());
+  const [courseAssignments, setCourseAssignments] = useState<Map<number, Assignment[]>>(new Map());
 
   useEffect(() => {
     if (tab === 'users') {
@@ -43,6 +46,37 @@ export const AdminPanel = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadCourseDetails = async (courseId: number) => {
+    try {
+      // Загружаем участников и задания курса через админские эндпоинты
+      const [members, assignments] = await Promise.all([
+        getCourseMembersAdmin(courseId),
+        getCourseAssignmentsAdmin(courseId)
+      ]);
+      
+      setCourseMembers(prev => new Map(prev.set(courseId, members)));
+      setCourseAssignments(prev => new Map(prev.set(courseId, assignments)));
+    } catch (err) {
+      console.error('Failed to load course details:', err);
+      addAlert('Ошибка загрузки деталей курса', 'error');
+    }
+  };
+
+  const toggleCourseExpansion = async (courseId: number) => {
+    const newExpanded = new Set(expandedCourses);
+    
+    if (expandedCourses.has(courseId)) {
+      newExpanded.delete(courseId);
+    } else {
+      newExpanded.add(courseId);
+      if (!courseMembers.has(courseId) || !courseAssignments.has(courseId)) {
+        await loadCourseDetails(courseId);
+      }
+    }
+    
+    setExpandedCourses(newExpanded);
   };
 
   const handleDeleteUser = async (userId: number) => {
@@ -135,26 +169,119 @@ export const AdminPanel = () => {
             )}
 
             {tab === 'courses' && (
-              <div className="space-y-2">
+              <div className="space-y-4">
                 {courses.map((course) => (
-                  <div key={course.id} className="card flex justify-between items-center">
-                    <div>
-                      <p className="text-white font-medium">{course.title}</p>
-                      <p className="text-sm text-text-secondary">
-                        {course.description || 'Нет описания'}
-                      </p>
-                      <div className="flex gap-3 mt-1 text-xs text-text-tertiary">
-                        <span>Код: {course.code}</span>
-                        <span>{course.member_count} участников</span>
-                        <span>ID создателя: {course.creator_id}</span>
+                  <div key={course.id} className="card">
+                    {/* Заголовок курса */}
+                    <div className="flex justify-between items-start gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3 mb-2">
+                          <button
+                            onClick={() => toggleCourseExpansion(course.id)}
+                            className="text-text-secondary hover:text-white transition-colors flex-shrink-0"
+                            title={expandedCourses.has(course.id) ? 'Свернуть' : 'Развернуть'}
+                          >
+                            <svg 
+                              className={`w-5 h-5 transition-transform ${expandedCourses.has(course.id) ? 'rotate-90' : ''}`}
+                              fill="none" 
+                              stroke="currentColor" 
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </button>
+                          <h3 className="text-white font-medium text-lg truncate min-w-0 flex-1" title={course.title}>
+                            {course.title}
+                          </h3>
+                        </div>
+                        <p className="text-text-secondary text-sm mb-2 truncate" title={course.description || 'Нет описания'}>
+                          {course.description || 'Нет описания'}
+                        </p>
+                        <div className="flex gap-3 text-xs text-text-tertiary flex-wrap">
+                          <span>Код: {course.code}</span>
+                          <span>{course.member_count} участников</span>
+                          <span>ID: {course.creator_id}</span>
+                        </div>
                       </div>
+                      <button
+                        onClick={() => handleDeleteCourse(course.id)}
+                        className="btn-secondary text-red-500 hover:bg-red-500/10 flex-shrink-0 whitespace-nowrap"
+                      >
+                        Удалить
+                      </button>
                     </div>
-                    <button
-                      onClick={() => handleDeleteCourse(course.id)}
-                      className="btn-secondary text-red-500 hover:bg-red-500/10"
-                    >
-                      Удалить
-                    </button>
+
+                    {/* Раскрывающийся контент */}
+                    {expandedCourses.has(course.id) && (
+                      <div className="mt-4 pt-4 border-t border-border-color space-y-4">
+                        {/* Участники курса */}
+                        <div>
+                          <h4 className="text-white font-medium mb-2 flex items-center gap-2">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                            </svg>
+                            Участники курса ({courseMembers.get(course.id)?.length || 0})
+                          </h4>
+                          <div className="bg-bg-secondary rounded-lg p-3 max-h-48 overflow-y-auto">
+                            {courseMembers.get(course.id)?.length ? (
+                              <div className="space-y-2">
+                                {courseMembers.get(course.id)?.map((member) => (
+                                  <div key={member.id} className="flex justify-between items-center text-sm">
+                                    <div>
+                                      <span className="text-white">{member.username}</span>
+                                      <span className="text-text-secondary ml-2">({member.email})</span>
+                                    </div>
+                                    <span className="text-text-tertiary text-xs">
+                                      ID: {member.user_id}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-text-secondary text-sm italic">Участники не найдены</p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Задания курса */}
+                        <div>
+                          <h4 className="text-white font-medium mb-2 flex items-center gap-2">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            Задания курса ({courseAssignments.get(course.id)?.length || 0})
+                          </h4>
+                          <div className="bg-bg-secondary rounded-lg p-3 max-h-48 overflow-y-auto">
+                            {courseAssignments.get(course.id)?.length ? (
+                              <div className="space-y-2">
+                                {courseAssignments.get(course.id)?.map((assignment) => (
+                                  <div key={assignment.id} className="flex justify-between items-center text-sm">
+                                    <div>
+                                      <span className="text-white">{assignment.title}</span>
+                                      {assignment.due_date && (
+                                        <span className="text-text-tertiary ml-2">
+                                          до {new Date(assignment.due_date).toLocaleDateString('ru-RU')}
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded">
+                                        {assignment.grading_type === 'numeric' ? 'Числовая' : 'Текстовая'}
+                                      </span>
+                                      <span className="text-text-tertiary text-xs">
+                                        ID: {assignment.id}
+                                      </span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-text-secondary text-sm italic">Задания не найдены</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

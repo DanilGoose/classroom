@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Response
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, case
 from typing import List
 from datetime import datetime
 import json
+import os
 from ..database import get_db
 from ..models.user import User
 from ..models.course import Course, CourseMember
@@ -633,3 +635,60 @@ async def delete_submission(
     )
 
     return None
+
+
+# Защищенные эндпоинты для скачивания файлов сдач
+@router.get("/{submission_id}/files/{file_id}/download")
+async def download_submission_file(
+    submission_id: int,
+    file_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Скачивание файла сдачи (только для участников курса или автора сдачи)"""
+    submission = db.query(Submission).filter(Submission.id == submission_id).first()
+    if not submission:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Сдача не найдена"
+        )
+
+    assignment = db.query(Assignment).filter(Assignment.id == submission.assignment_id).first()
+
+    # Проверяем права доступа
+    is_author = submission.student_id == current_user.id
+    is_member = db.query(CourseMember).filter(
+        CourseMember.course_id == assignment.course_id,
+        CourseMember.user_id == current_user.id
+    ).first()
+
+    if not (is_author or is_member):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Доступ запрещен"
+        )
+
+    file_record = db.query(SubmissionFile).filter(
+        SubmissionFile.id == file_id,
+        SubmissionFile.submission_id == submission_id
+    ).first()
+
+    if not file_record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Файл не найден"
+        )
+
+    file_path = os.path.join(os.getcwd(), file_record.file_path)
+
+    if not os.path.exists(file_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Файл не найден на сервере"
+        )
+
+    return FileResponse(
+        path=file_path,
+        media_type='application/octet-stream',
+        filename=file_record.file_name
+    )

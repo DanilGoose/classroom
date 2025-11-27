@@ -5,9 +5,10 @@ interface ModalProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  size?: 'default' | 'full';
 }
 
-export const Modal = ({ isOpen, onClose, title, children }: ModalProps) => {
+export const Modal = ({ isOpen, onClose, title, children, size = 'default' }: ModalProps) => {
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -29,7 +30,11 @@ export const Modal = ({ isOpen, onClose, title, children }: ModalProps) => {
         onClick={onClose}
       />
 
-      <div className="relative bg-bg-card border border-border-color rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+      <div className={`relative bg-bg-card border border-border-color rounded-lg ${
+        size === 'full' 
+          ? 'w-full max-w-7xl h-[95vh]' 
+          : 'max-w-md w-full max-h-[90vh]'
+      } overflow-y-auto`}>
         <div className="sticky top-0 bg-bg-card border-b border-border-color px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-center">
           <h2 className="text-lg sm:text-xl font-semibold text-text-primary">{title}</h2>
           <button
@@ -52,7 +57,7 @@ export const Modal = ({ isOpen, onClose, title, children }: ModalProps) => {
           </button>
         </div>
 
-        <div className="p-4 sm:p-6">{children}</div>
+        <div className="p-4 sm:p-6 overflow-y-auto h-full">{children}</div>
       </div>
     </div>
   );

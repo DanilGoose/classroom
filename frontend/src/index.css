@@ -87,6 +87,13 @@ body {
   .input {
     @apply w-full bg-bg-card border border-border-color rounded-lg px-4 py-2 text-text-primary placeholder-text-tertiary focus:outline-none focus:border-primary transition-colors;
   }
+
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
 }
 
 @keyframes slide-in {

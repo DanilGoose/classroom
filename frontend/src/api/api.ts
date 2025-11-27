@@ -274,3 +274,13 @@ export const getCourseAssignmentsAdmin = async (courseId: number): Promise<Assig
   const response = await axios.get(`/admin/courses/${courseId}/assignments`);
   return response.data;
 };
+
+export const getAssignmentAdmin = async (id: number): Promise<Assignment> => {
+  const response = await axios.get(`/admin/assignments/${id}`);
+  return response.data;
+};
+
+export const getAssignmentSubmissionsAdmin = async (assignmentId: number): Promise<Submission[]> => {
+  const response = await axios.get(`/admin/assignments/${assignmentId}/submissions`);
+  return response.data;
+};

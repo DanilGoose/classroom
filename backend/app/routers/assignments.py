@@ -1,13 +1,15 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Response
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List
 import json
+import os
 from ..database import get_db
 from ..models.user import User
 from ..models.course import Course, CourseMember
 from ..models.assignment import Assignment, AssignmentFile
 from ..models.assignment_view import AssignmentView
-from ..models.submission import Submission
+from ..models.submission import Submission, SubmissionFile
 from ..schemas.assignment import AssignmentCreate, AssignmentUpdate, AssignmentResponse
 from ..utils.auth import get_current_user
 from ..utils.file_upload import save_upload_file, delete_file
@@ -473,3 +475,58 @@ def get_assignment_ungraded_submissions(
         result.append(response)
 
     return result
+
+
+# Защищенные эндпоинты для скачивания файлов заданий
+@router.get("/{assignment_id}/files/{file_id}/download")
+async def download_assignment_file(
+    assignment_id: int,
+    file_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Скачивание файла задания (только для участников курса)"""
+    assignment = db.query(Assignment).filter(Assignment.id == assignment_id).first()
+    if not assignment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Задание не найдено"
+        )
+
+    # Проверяем, что пользователь является участником курса
+    is_member = db.query(CourseMember).filter(
+        CourseMember.course_id == assignment.course_id,
+        CourseMember.user_id == current_user.id
+    ).first()
+
+    if not is_member:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Доступ запрещен"
+        )
+
+    file_record = db.query(AssignmentFile).filter(
+        AssignmentFile.id == file_id,
+        AssignmentFile.assignment_id == assignment_id
+    ).first()
+
+    if not file_record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Файл не найден"
+        )
+
+    file_name = os.path.basename(file_record.file_path)
+    file_path = os.path.join(os.getcwd(), file_record.file_path)
+
+    if not os.path.exists(file_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Файл не найден на сервере"
+        )
+
+    return FileResponse(
+        path=file_path,
+        media_type='application/octet-stream',
+        filename=file_record.file_name
+    )

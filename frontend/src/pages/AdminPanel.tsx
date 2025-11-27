@@ -3,6 +3,7 @@ import { Navbar } from '../components/Navbar';
 import { getAllUsers, getAllCourses, deleteUser, deleteCourse, getCourseMembersAdmin, getCourseAssignmentsAdmin } from '../api/api';
 import { useAlertStore } from '../store/alertStore';
 import { useConfirmStore } from '../store/confirmStore';
+import { AssignmentPopup } from '../components/AssignmentPopup';
 import type { User, Course, CourseMember, Assignment } from '../types';
 
 export const AdminPanel = () => {
@@ -15,6 +16,7 @@ export const AdminPanel = () => {
   const [expandedCourses, setExpandedCourses] = useState<Set<number>>(new Set());
   const [courseMembers, setCourseMembers] = useState<Map<number, CourseMember[]>>(new Map());
   const [courseAssignments, setCourseAssignments] = useState<Map<number, Assignment[]>>(new Map());
+  const [selectedAssignment, setSelectedAssignment] = useState<number | null>(null);
 
   useEffect(() => {
     if (tab === 'users') {
@@ -77,6 +79,10 @@ export const AdminPanel = () => {
     }
     
     setExpandedCourses(newExpanded);
+  };
+
+  const closeAssignmentPopup = () => {
+    setSelectedAssignment(null);
   };
 
   const handleDeleteUser = async (userId: number) => {
@@ -255,16 +261,21 @@ export const AdminPanel = () => {
                             {courseAssignments.get(course.id)?.length ? (
                               <div className="space-y-2">
                                 {courseAssignments.get(course.id)?.map((assignment) => (
-                                  <div key={assignment.id} className="flex justify-between items-center text-sm">
-                                    <div>
-                                      <span className="text-white">{assignment.title}</span>
+                                  <div 
+                                    key={assignment.id} 
+                                    className="flex justify-between items-center text-sm p-2 hover:bg-bg-hover rounded cursor-pointer transition-colors"
+                                    onClick={() => setSelectedAssignment(assignment.id)}
+                                    title="Нажмите для просмотра детальной информации"
+                                  >
+                                    <div className="flex-1 min-w-0">
+                                      <span className="text-white truncate">{assignment.title}</span>
                                       {assignment.due_date && (
                                         <span className="text-text-tertiary ml-2">
                                           до {new Date(assignment.due_date).toLocaleDateString('ru-RU')}
                                         </span>
                                       )}
                                     </div>
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2 flex-shrink-0">
                                       <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded">
                                         {assignment.grading_type === 'numeric' ? 'Числовая' : 'Текстовая'}
                                       </span>
@@ -289,6 +300,15 @@ export const AdminPanel = () => {
           </>
         )}
       </div>
+
+      {/* popup с детальной информацией о задании */}
+      {selectedAssignment && (
+        <AssignmentPopup
+          assignmentId={selectedAssignment}
+          isOpen={!!selectedAssignment}
+          onClose={closeAssignmentPopup}
+        />
+      )}
     </div>
   );
 };

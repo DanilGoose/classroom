@@ -1,28 +1,35 @@
 import { useEffect, useState } from 'react';
 import { Navbar } from '../components/Navbar';
-import { getAllUsers, getAllCourses, deleteUser, deleteCourse, getCourseMembersAdmin, getCourseAssignmentsAdmin } from '../api/api';
+import { getAllUsers, getAllCourses, deleteUser, deleteCourse, getCourseMembersAdmin, getCourseAssignmentsAdmin, getAllSubmissionsAdmin, downloadSubmissionFileAdmin } from '../api/api';
 import { useAlertStore } from '../store/alertStore';
 import { useConfirmStore } from '../store/confirmStore';
 import { AssignmentPopup } from '../components/AssignmentPopup';
-import type { User, Course, CourseMember, Assignment } from '../types';
+import { FullTextModal } from '../components/FullTextModal';
+import type { User, Course, CourseMember, Assignment, AdminSubmission } from '../types';
 
 export const AdminPanel = () => {
   const { addAlert } = useAlertStore();
   const { confirm } = useConfirmStore();
-  const [tab, setTab] = useState<'users' | 'courses'>('users');
+  const [tab, setTab] = useState<'users' | 'courses' | 'submissions'>('users');
   const [users, setUsers] = useState<User[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
+  const [submissions, setSubmissions] = useState<AdminSubmission[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedCourses, setExpandedCourses] = useState<Set<number>>(new Set());
   const [courseMembers, setCourseMembers] = useState<Map<number, CourseMember[]>>(new Map());
   const [courseAssignments, setCourseAssignments] = useState<Map<number, Assignment[]>>(new Map());
   const [selectedAssignment, setSelectedAssignment] = useState<number | null>(null);
+  const [fullTextModalOpen, setFullTextModalOpen] = useState(false);
+  const [fullTextContent, setFullTextContent] = useState('');
+  const [fullTextTitle, setFullTextTitle] = useState('');
 
   useEffect(() => {
     if (tab === 'users') {
       loadUsers();
-    } else {
+    } else if (tab === 'courses') {
       loadCourses();
+    } else if (tab === 'submissions') {
+      loadSubmissions();
     }
   }, [tab]);
 
@@ -48,6 +55,49 @@ export const AdminPanel = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadSubmissions = async () => {
+    setLoading(true);
+    try {
+      const data = await getAllSubmissionsAdmin();
+      setSubmissions(data);
+    } catch (err) {
+      console.error('Failed to load submissions');
+      addAlert('Ошибка загрузки сдач', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownloadFile = async (submissionId: number, fileId: number, fileName: string) => {
+    try {
+      const blob = await downloadSubmissionFileAdmin(submissionId, fileId);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+      addAlert('Файл скачан', 'success');
+    } catch (err) {
+      console.error('Failed to download file:', err);
+      addAlert('Ошибка скачивания файла', 'error');
+    }
+  };
+
+  const openFullTextModal = (content: string, studentName: string, assignmentTitle: string) => {
+    setFullTextContent(content);
+    setFullTextTitle(`${assignmentTitle} - ${studentName}`);
+    setFullTextModalOpen(true);
+  };
+
+  const closeFullTextModal = () => {
+    setFullTextModalOpen(false);
+    setFullTextContent('');
+    setFullTextTitle('');
   };
 
   const loadCourseDetails = async (courseId: number) => {
@@ -138,6 +188,16 @@ export const AdminPanel = () => {
             >
               Курсы ({courses.length})
             </button>
+            <button
+              onClick={() => setTab('submissions')}
+              className={`pb-3 border-b-2 transition-colors ${
+                tab === 'submissions'
+                  ? 'border-primary text-white'
+                  : 'border-transparent text-text-secondary hover:text-text-primary'
+              }`}
+            >
+              Сдачи ({submissions.length})
+            </button>
           </div>
         </div>
 
@@ -171,6 +231,120 @@ export const AdminPanel = () => {
                     </button>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {tab === 'submissions' && (
+              <div className="space-y-4">
+                {submissions.length > 0 ? (
+                  submissions.map((submission) => (
+                    <div key={submission.id} className="card">
+                      <div className="flex justify-between items-start gap-4">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h3 className="text-white font-medium text-lg truncate min-w-0 flex-1" title={submission.assignment_title || 'Без названия'}>
+                              {submission.assignment_title || 'Без названия'}
+                            </h3>
+                            <span className="text-xs text-text-tertiary flex-shrink-0">
+                              ID: {submission.id}
+                            </span>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-4 text-sm">
+                              <span className="text-text-secondary">
+                                <strong>Студент:</strong> {submission.student_name || 'Неизвестный'}
+                              </span>
+                              <span className="text-text-secondary">
+                                <strong>Сдано:</strong> {new Date(submission.submitted_at).toLocaleDateString('ru-RU')}
+                              </span>
+                              {submission.score && (
+                                <span className="text-text-secondary">
+                                  <strong>Оценка:</strong> {submission.score}
+                                </span>
+                              )}
+                            </div>
+                            
+                            {submission.content && (
+                              <div className="bg-bg-secondary rounded-lg p-3">
+                                <p className="text-text-secondary text-sm">
+                                  <strong>Содержание:</strong>
+                                </p>
+                                <div className="mt-1 text-white text-sm break-words whitespace-pre-wrap line-clamp-3">
+                                  {submission.content}
+                                </div>
+                                {submission.content && submission.content.length > 150 && (
+                                  <button
+                                    onClick={() => openFullTextModal(
+                                      submission.content!,
+                                      submission.student_name || 'Неизвестный студент',
+                                      submission.assignment_title || 'Без названия'
+                                    )}
+                                    className="text-primary hover:text-primary-hover text-xs mt-1 underline"
+                                  >
+                                    Показать полностью
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                            
+                            {submission.files && submission.files.length > 0 && (
+                              <div className="bg-bg-secondary rounded-lg p-3">
+                                <h4 className="text-white font-medium mb-2 flex items-center gap-2">
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                  </svg>
+                                  Файлы ({submission.files.length})
+                                </h4>
+                                <div className="space-y-2">
+                                  {submission.files.map((file) => (
+                                    <div key={file.id} className="flex justify-between items-center text-sm p-2 hover:bg-bg-hover rounded transition-colors">
+                                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                                        <svg className="w-4 h-4 text-text-tertiary flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                        </svg>
+                                        <span className="text-white truncate" title={file.file_name}>
+                                          {file.file_name}
+                                        </span>
+                                        <span className="text-text-tertiary text-xs">
+                                          {new Date(file.uploaded_at).toLocaleDateString('ru-RU')}
+                                        </span>
+                                      </div>
+                                      <button
+                                        onClick={() => handleDownloadFile(submission.id, file.id, file.file_name)}
+                                        className="btn-secondary text-primary hover:bg-primary/10 flex-shrink-0"
+                                        title="Скачать файл"
+                                      >
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                        </svg>
+                                      </button>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            
+                            {submission.teacher_comment && (
+                              <div className="bg-bg-secondary rounded-lg p-3">
+                                <p className="text-text-secondary text-sm">
+                                  <strong>Комментарий учителя:</strong> {submission.teacher_comment}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-center text-text-secondary py-8">
+                    <svg className="w-16 h-16 mx-auto mb-4 text-text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <p>Сдач пока нет</p>
+                  </div>
+                )}
               </div>
             )}
 
@@ -309,6 +483,13 @@ export const AdminPanel = () => {
           onClose={closeAssignmentPopup}
         />
       )}
+
+      <FullTextModal
+        isOpen={fullTextModalOpen}
+        onClose={closeFullTextModal}
+        title={fullTextTitle}
+        content={fullTextContent}
+      />
     </div>
   );
 };

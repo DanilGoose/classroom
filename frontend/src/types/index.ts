@@ -146,3 +146,19 @@ export interface RegisterData {
   username: string;
   password: string;
 }
+
+export interface AdminSubmission {
+  id: number;
+  assignment_id: number;
+  assignment_title: string | null;
+  course_id: number | null;
+  student_id: number;
+  student_name: string | null;
+  content: string | null;
+  score: number | string | null;
+  teacher_comment: string | null;
+  submitted_at: string;
+  graded_at: string | null;
+  viewed_by_teacher: number;
+  files: SubmissionFile[];
+}

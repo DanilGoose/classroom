@@ -284,3 +284,15 @@ export const getAssignmentSubmissionsAdmin = async (assignmentId: number): Promi
   const response = await axios.get(`/admin/assignments/${assignmentId}/submissions`);
   return response.data;
 };
+
+export const getAllSubmissionsAdmin = async (): Promise<any[]> => {
+  const response = await axios.get('/admin/submissions');
+  return response.data;
+};
+
+export const downloadSubmissionFileAdmin = async (submissionId: number, fileId: number): Promise<Blob> => {
+  const response = await axios.get(`/admin/submissions/${submissionId}/files/${fileId}/download`, {
+    responseType: 'blob'
+  });
+  return response.data;
+};

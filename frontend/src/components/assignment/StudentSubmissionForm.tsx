@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import type { Assignment, Submission } from '../../types';
 import { FileUploadZone } from '../FileUploadZone';
 import { getFileUrl } from '../../api/axios';
 import { isSubmittedOnTime } from '../../utils/deadline';
+import { FullTextModal } from '../FullTextModal';
 
 interface StudentSubmissionFormProps {
   assignment: Assignment;
@@ -34,10 +36,26 @@ export const StudentSubmissionForm = ({
   onDeleteSubmission,
   formatDate,
 }: StudentSubmissionFormProps) => {
+  const [fullTextModalOpen, setFullTextModalOpen] = useState(false);
+  const [fullTextContent, setFullTextContent] = useState('');
+  const [fullTextTitle, setFullTextTitle] = useState('');
+  
   const attemptsLeft = assignment.max_attempts
     ? assignment.max_attempts - totalAttempts
     : null;
   const canSubmit = assignment.max_attempts === null || attemptsLeft! > 0;
+
+  const openFullTextModal = (content: string, attemptNumber: number) => {
+    setFullTextContent(content);
+    setFullTextTitle(`Попытка #${attemptNumber} - ${assignment.title}`);
+    setFullTextModalOpen(true);
+  };
+
+  const closeFullTextModal = () => {
+    setFullTextModalOpen(false);
+    setFullTextContent('');
+    setFullTextTitle('');
+  };
 
   return (
     <div className="bg-bg-card rounded-lg p-4 sm:p-6">
@@ -115,7 +133,17 @@ export const StudentSubmissionForm = ({
                 {submission.content && (
                   <div className="mb-2 sm:mb-3">
                     <p className="text-[10px] sm:text-xs text-text-secondary mb-1">Текст ответа:</p>
-                    <p className="text-xs sm:text-sm text-text-primary break-words">{submission.content}</p>
+                    <div className="text-xs sm:text-sm text-text-primary">
+                      <p className="whitespace-pre-wrap line-clamp-3">{submission.content}</p>
+                      {submission.content && submission.content.length > 150 && (
+                        <button
+                          onClick={() => openFullTextModal(submission.content!, mySubmissions.length - index)}
+                          className="text-primary hover:text-primary-hover text-xs mt-1 underline"
+                        >
+                          Показать полностью
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -257,6 +285,13 @@ export const StudentSubmissionForm = ({
           </form>
         </div>
       )}
+
+      <FullTextModal
+        isOpen={fullTextModalOpen}
+        onClose={closeFullTextModal}
+        title={fullTextTitle}
+        content={fullTextContent}
+      />
     </div>
   );
 };

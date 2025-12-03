@@ -241,6 +241,51 @@ def get_assignment_submissions_admin(
     return result
 
 
+@router.get("/submissions")
+def get_all_submissions_admin(
+    current_admin: User = Depends(get_current_admin),
+    db: Session = Depends(get_db)
+):
+    """Получить все сдачи всех заданий (только для админов)"""
+    submissions = db.query(Submission).filter(
+        Submission.is_deleted == 0
+    ).order_by(Submission.submitted_at.desc()).all()
+
+    result = []
+    for submission in submissions:
+        student = db.query(User).filter(User.id == submission.student_id).first()
+        assignment = db.query(Assignment).filter(Assignment.id == submission.assignment_id).first()
+        
+        # Получаем файлы сдачи
+        files = []
+        for file_record in submission.files:
+            files.append({
+                "id": file_record.id,
+                "file_name": file_record.file_name,
+                "file_path": file_record.file_path,
+                "uploaded_at": file_record.uploaded_at.isoformat()
+            })
+        
+        submission_data = {
+            "id": submission.id,
+            "assignment_id": submission.assignment_id,
+            "assignment_title": assignment.title if assignment else None,
+            "course_id": assignment.course_id if assignment else None,
+            "student_id": submission.student_id,
+            "student_name": student.username if student else None,
+            "content": submission.content,
+            "score": submission.score,
+            "teacher_comment": submission.teacher_comment,
+            "submitted_at": submission.submitted_at.isoformat(),
+            "graded_at": submission.graded_at.isoformat() if submission.graded_at else None,
+            "viewed_by_teacher": submission.viewed_by_teacher,
+            "files": files
+        }
+        result.append(submission_data)
+
+    return result
+
+
 @router.get("/submissions/{submission_id}/files/{file_id}/download")
 async def download_submission_file_admin(
     submission_id: int,

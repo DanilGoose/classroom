@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import type { Assignment, Submission } from '../../types';
 import { getFileUrl } from '../../api/axios';
 import { isSubmittedOnTime } from '../../utils/deadline';
+import { FullTextModal } from '../FullTextModal';
 
 interface GradingFormProps {
   selectedSubmission: Submission;
@@ -23,7 +25,23 @@ export const GradingForm = ({
   isArchived,
   onSubmit,
 }: GradingFormProps) => {
+  const [fullTextModalOpen, setFullTextModalOpen] = useState(false);
+  const [fullTextContent, setFullTextContent] = useState('');
+  const [fullTextTitle, setFullTextTitle] = useState('');
+  
   const onTime = isSubmittedOnTime(selectedSubmission.submitted_at, assignment.due_date);
+
+  const openFullTextModal = (content: string, studentName: string, assignmentTitle: string) => {
+    setFullTextContent(content);
+    setFullTextTitle(`${assignmentTitle} - ${studentName}`);
+    setFullTextModalOpen(true);
+  };
+
+  const closeFullTextModal = () => {
+    setFullTextModalOpen(false);
+    setFullTextContent('');
+    setFullTextTitle('');
+  };
 
   return (
     <div className="bg-bg-card rounded-lg p-4 sm:p-6">
@@ -42,7 +60,25 @@ export const GradingForm = ({
         <div>
           <p className="text-xs sm:text-sm text-text-secondary mb-2">Текст ответа:</p>
           <div className="bg-bg-primary p-3 sm:p-4 rounded border border-border-color">
-            <p className="text-xs sm:text-sm text-text-primary break-words">{selectedSubmission.content || 'Нет текста'}</p>
+            {selectedSubmission.content ? (
+              <>
+                <p className="text-xs sm:text-sm text-text-primary whitespace-pre-wrap line-clamp-3">{selectedSubmission.content}</p>
+                {selectedSubmission.content && selectedSubmission.content.length > 150 && (
+                  <button
+                    onClick={() => openFullTextModal(
+                      selectedSubmission.content!,
+                      selectedSubmission.student_name || 'Неизвестный студент',
+                      assignment.title
+                    )}
+                    className="text-primary hover:text-primary-hover text-xs mt-1 underline block"
+                  >
+                    Показать полностью
+                  </button>
+                )}
+              </>
+            ) : (
+              <p className="text-xs sm:text-sm text-text-tertiary italic">Нет текста</p>
+            )}
           </div>
         </div>
 
@@ -141,6 +177,13 @@ export const GradingForm = ({
           </button>
         )}
       </form>
+
+      <FullTextModal
+        isOpen={fullTextModalOpen}
+        onClose={closeFullTextModal}
+        title={fullTextTitle}
+        content={fullTextContent}
+      />
     </div>
   );
 };

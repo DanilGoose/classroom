@@ -25,6 +25,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ .
 COPY --from=frontend-builder /frontend/dist ./static
 RUN mkdir -p ./uploads ./db
+
+# Безопасные значения по умолчанию (можно переопределить через docker-compose env)
+ENV DOCS_ENABLED=false \
+    ENFORCE_ORIGIN=true \
+    ALLOWED_ORIGINS=https://localhost,http://localhost
+
 EXPOSE 8000
 
 # Запускаем приложение

@@ -1,7 +1,7 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 import os
 from pathlib import Path
 from .database import engine, Base
@@ -17,17 +17,36 @@ os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 app = FastAPI(
     title="Classroom API",
     description="API для образовательной платформы",
-    version="1.0.0"
+    version="1.0.0",
+    docs_url="/docs" if settings.DOCS_ENABLED else None,
+    redoc_url=None if not settings.DOCS_ENABLED else "/redoc",
+    openapi_url="/openapi.json" if settings.DOCS_ENABLED else None,
 )
 
 # Настройка CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def enforce_origin(request: Request, call_next):
+    """
+    Дополнительная защита: блокируем запросы к API, если Origin не из списка.
+    Отключено по умолчанию, включается флагом ENFORCE_ORIGIN.
+    """
+    if settings.ENFORCE_ORIGIN and request.url.path.startswith("/api"):
+        origin = request.headers.get("origin")
+        if not origin or origin not in settings.ALLOWED_ORIGINS:
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "Origin is not allowed"},
+            )
+    return await call_next(request)
 
 # Подключение роутеров с префиксом /api
 app.include_router(auth.router, prefix="/api")

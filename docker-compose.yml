@@ -19,6 +19,9 @@ services:
       - ACCESS_TOKEN_EXPIRE_MINUTES=1440
       - UPLOAD_DIR=./uploads
       - MAX_FILE_SIZE_MB=50
+      - DOCS_ENABLED=${DOCS_ENABLED:-false}
+      - ENFORCE_ORIGIN=${ENFORCE_ORIGIN:-true}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-https://localhost,http://localhost}
     restart: unless-stopped
     container_name: classroom-app
     networks:

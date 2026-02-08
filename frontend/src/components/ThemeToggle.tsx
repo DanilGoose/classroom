@@ -1,7 +1,12 @@
 import { useThemeStore } from '../store/themeStore';
+import { isLightThemeDisabled } from '../config/theme';
 
 export const ThemeToggle = () => {
   const { theme, toggleTheme } = useThemeStore();
+
+  if (isLightThemeDisabled) {
+    return null;
+  }
 
   return (
     <button

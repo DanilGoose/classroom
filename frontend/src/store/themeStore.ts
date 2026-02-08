@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useAlertStore } from './alertStore';
+import { isLightThemeDisabled } from '../config/theme';
 
 type Theme = 'light' | 'dark';
 
@@ -12,6 +13,9 @@ interface ThemeState {
 
 // Определяем системную тему
 const getSystemTheme = (): Theme => {
+  if (isLightThemeDisabled) {
+    return 'dark';
+  }
   if (typeof window !== 'undefined' && window.matchMedia) {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
@@ -24,6 +28,12 @@ export const useThemeStore = create<ThemeState>()(
       theme: getSystemTheme(),
       toggleTheme: () =>
         set((state) => {
+          if (isLightThemeDisabled) {
+            document.documentElement.classList.remove('light', 'dark');
+            document.documentElement.classList.add('dark');
+            return { theme: 'dark' };
+          }
+
           const newTheme = state.theme === 'dark' ? 'light' : 'dark';
 
           // Показываем предупреждение при каждом переключении на светлую тему
@@ -43,9 +53,10 @@ export const useThemeStore = create<ThemeState>()(
           return { theme: newTheme };
         }),
       setTheme: (theme) => {
+        const nextTheme: Theme = isLightThemeDisabled && theme === 'light' ? 'dark' : theme;
         document.documentElement.classList.remove('light', 'dark');
-        document.documentElement.classList.add(theme);
-        set({ theme });
+        document.documentElement.classList.add(nextTheme);
+        set({ theme: nextTheme });
       },
     }),
     {
@@ -53,7 +64,10 @@ export const useThemeStore = create<ThemeState>()(
       onRehydrateStorage: () => (state) => {
         // Применяем сохраненную тему при загрузке
         if (state) {
-          document.documentElement.classList.add(state.theme);
+          const hydratedTheme: Theme = isLightThemeDisabled ? 'dark' : state.theme;
+          state.theme = hydratedTheme;
+          document.documentElement.classList.remove('light', 'dark');
+          document.documentElement.classList.add(hydratedTheme);
         }
       },
     }

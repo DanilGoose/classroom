@@ -3,6 +3,7 @@ FROM node:20-alpine AS frontend-builder
 
 # Аргумент для API URL
 ARG VITE_API_URL=/api
+ARG VITE_DISABLE_LIGHT_THEME=false
 
 WORKDIR /frontend
 COPY frontend/package*.json ./
@@ -11,6 +12,7 @@ COPY frontend/ ./
 
 # Создание env для фронтенда
 ENV VITE_API_URL=${VITE_API_URL}
+ENV VITE_DISABLE_LIGHT_THEME=${VITE_DISABLE_LIGHT_THEME}
 RUN npm run build
 
 # Сборка бэкенда

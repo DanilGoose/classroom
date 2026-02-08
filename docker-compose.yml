@@ -7,6 +7,7 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_URL: /api
+        VITE_DISABLE_LIGHT_THEME: ${VITE_DISABLE_LIGHT_THEME:-false}
     expose:
       - "8000"
     volumes:

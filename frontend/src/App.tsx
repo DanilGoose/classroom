@@ -13,10 +13,11 @@ import { AssignmentPage } from './pages/AssignmentPage';
 import { AdminPanel } from './pages/AdminPanel';
 import { Profile } from './pages/Profile';
 import { useWebSocketInit } from './hooks/useWebSocketInit';
+import { isLightThemeDisabled } from './config/theme';
 
 function App() {
   const { initAuth, isAuthenticated, isLoading } = useAuthStore();
-  const { theme } = useThemeStore();
+  const { theme, setTheme } = useThemeStore();
 
   // Инициализация WebSocket
   useWebSocketInit();
@@ -27,9 +28,14 @@ function App() {
 
   // Инициализация темы при загрузке приложения
   useEffect(() => {
+    if (isLightThemeDisabled && theme !== 'dark') {
+      setTheme('dark');
+      return;
+    }
+
     document.documentElement.classList.remove('light', 'dark');
-    document.documentElement.classList.add(theme);
-  }, [theme]);
+    document.documentElement.classList.add(isLightThemeDisabled ? 'dark' : theme);
+  }, [theme, setTheme]);
 
   if (isLoading) {
     return (

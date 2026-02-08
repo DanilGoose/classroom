@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Assignment, Submission } from '../../types';
+import type { Assignment, Submission, SubmissionFeedbackFile } from '../../types';
 import { FileUploadZone } from '../FileUploadZone';
 import { getFileUrl } from '../../api/axios';
 import { isSubmittedOnTime } from '../../utils/deadline';
@@ -18,6 +18,8 @@ interface StudentSubmissionFormProps {
   isArchived: boolean;
   onSubmit: (e: React.FormEvent) => void;
   onDeleteSubmission: (submissionId: number) => void;
+  onDownloadFeedbackFile: (feedbackFile: SubmissionFeedbackFile) => void;
+  downloadingFeedbackFileId: number | null;
   formatDate: (dateString: string) => string;
 }
 
@@ -34,6 +36,8 @@ export const StudentSubmissionForm = ({
   isArchived,
   onSubmit,
   onDeleteSubmission,
+  onDownloadFeedbackFile,
+  downloadingFeedbackFileId,
   formatDate,
 }: StudentSubmissionFormProps) => {
   const [fullTextModalOpen, setFullTextModalOpen] = useState(false);
@@ -215,6 +219,31 @@ export const StudentSubmissionForm = ({
                         Удалить эту попытку
                       </button>
                     )}
+                  </div>
+                )}
+
+                {submission.feedback_files && submission.feedback_files.length > 0 && (
+                  <div className="mt-2 sm:mt-3">
+                    <p className="text-[10px] sm:text-xs text-text-secondary mb-1">
+                      Файлы с пометками преподавателя:
+                    </p>
+                    <div className="space-y-1">
+                      {submission.feedback_files.map((feedbackFile) => (
+                        <div key={feedbackFile.id} className="flex items-center justify-between gap-2 bg-bg-secondary border border-border-color rounded px-2 py-1">
+                          <span className="text-xs sm:text-sm text-text-primary break-all flex-1 min-w-0">
+                            {feedbackFile.file_name}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => onDownloadFeedbackFile(feedbackFile)}
+                            className="btn-secondary text-xs whitespace-nowrap"
+                            disabled={downloadingFeedbackFileId === feedbackFile.id}
+                          >
+                            {downloadingFeedbackFileId === feedbackFile.id ? 'Скачивание...' : 'Скачать'}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>

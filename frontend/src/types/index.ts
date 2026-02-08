@@ -77,6 +77,7 @@ export interface Submission {
   graded_at: string | null;
   viewed_by_teacher: number; // 0 = не просмотрено, 1 = просмотрено
   files: SubmissionFile[];
+  feedback_files: SubmissionFeedbackFile[];
   student_name: string | null;
 }
 
@@ -85,6 +86,38 @@ export interface SubmissionFile {
   file_name: string;
   file_path: string;
   uploaded_at: string;
+  review_asset?: SubmissionReviewAsset | null;
+}
+
+export interface SubmissionReviewAsset {
+  id: number;
+  submission_file_id: number;
+  review_file_path: string;
+  review_file_name: string;
+  mime_type: string;
+  created_at: string;
+}
+
+export interface SubmissionFeedbackFile {
+  id: number;
+  submission_id: number;
+  teacher_id: number;
+  source_submission_file_id: number | null;
+  file_path: string;
+  file_name: string;
+  mime_type: string;
+  created_at: string;
+}
+
+export interface ReviewAsset {
+  submission_file_id: number;
+  source_file_name: string;
+  source_mime_type: string;
+  review_file_path: string;
+  review_file_name: string;
+  review_mime_type: string;
+  review_kind: 'image' | 'pdf';
+  is_converted_from_word: boolean;
 }
 
 export interface CreateCourseData {

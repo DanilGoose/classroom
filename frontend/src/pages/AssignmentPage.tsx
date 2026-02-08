@@ -8,6 +8,7 @@ import { TeacherSubmissionsList } from '../components/assignment/TeacherSubmissi
 import { GradingForm } from '../components/assignment/GradingForm';
 import { AssignmentChat } from '../components/assignment/AssignmentChat';
 import { EditAssignmentModal } from '../components/assignment/EditAssignmentModal';
+import { ReviewAnnotatorModal } from '../components/assignment/ReviewAnnotatorModal';
 import { useWebSocket, useAssignmentSubscription, useCourseSubscription } from '../hooks/useWebSocket';
 import {
   getAssignment,
@@ -28,11 +29,22 @@ import {
   getMyAttemptsInfo,
   markSubmissionViewed,
   markAssignmentAsRead,
+  prepareSubmissionFileReview,
+  downloadSubmissionFeedbackFile,
+  deleteSubmissionFeedbackFile,
 } from '../api/api';
 import { useAuthStore } from '../store/authStore';
 import { useAlertStore } from '../store/alertStore';
 import { useConfirmStore } from '../store/confirmStore';
-import type { Assignment, Message, Submission, Course } from '../types';
+import type {
+  Assignment,
+  Message,
+  Submission,
+  Course,
+  ReviewAsset,
+  SubmissionFile,
+  SubmissionFeedbackFile,
+} from '../types';
 
 export const AssignmentPage = () => {
   const { id } = useParams<{ id: string }>();
@@ -63,6 +75,13 @@ export const AssignmentPage = () => {
   const [gradeScore, setGradeScore] = useState('');
   const [gradeComment, setGradeComment] = useState('');
   const [totalAttempts, setTotalAttempts] = useState(0);
+  const [reviewAsset, setReviewAsset] = useState<ReviewAsset | null>(null);
+  const [reviewSubmissionId, setReviewSubmissionId] = useState<number | null>(null);
+  const [isAnnotatorOpen, setIsAnnotatorOpen] = useState(false);
+  const [preparingReviewFileId, setPreparingReviewFileId] = useState<number | null>(null);
+  const [downloadingFeedbackFileId, setDownloadingFeedbackFileId] = useState<number | null>(null);
+  const [deletingFeedbackFileId, setDeletingFeedbackFileId] = useState<number | null>(null);
+  const [feedbackFileToReplaceId, setFeedbackFileToReplaceId] = useState<number | null>(null);
 
   // Edit assignment states
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -133,6 +152,7 @@ export const AssignmentPage = () => {
       );
       addAlert(`Ваша работа оценена! Оценка: ${data.score}`, 'success');
     }
+    setSelectedSubmission((prev) => (prev && prev.id === data.id ? data : prev));
   }, [isTeacher, user, addAlert]);
 
   // Обработчик обновления сдачи
@@ -148,6 +168,7 @@ export const AssignmentPage = () => {
         prev.map((sub) => (sub.id === data.id ? data : sub))
       );
     }
+    setSelectedSubmission((prev) => (prev && prev.id === data.id ? data : prev));
   }, [isTeacher, user]);
 
   // Обработчик удаления сдачи
@@ -174,6 +195,7 @@ export const AssignmentPage = () => {
         prev.map((sub) => (sub.id === data.id ? data : sub))
       );
     }
+    setSelectedSubmission((prev) => (prev && prev.id === data.id ? data : prev));
   }, [isTeacher, user]);
 
   // Обработчик обновления задания
@@ -273,10 +295,19 @@ export const AssignmentPage = () => {
     }
   };
 
-  const loadAllSubmissions = async () => {
+  const loadAllSubmissions = async (preserveSelectedSubmissionId?: number) => {
     try {
       const data = await getAssignmentSubmissions(Number(id));
       setAllSubmissions(data);
+
+      if (preserveSelectedSubmissionId) {
+        const nextSelected = data.find((item) => item.id === preserveSelectedSubmissionId) || null;
+        setSelectedSubmission(nextSelected);
+        if (nextSelected) {
+          setGradeScore(nextSelected.score?.toString() || '');
+          setGradeComment(nextSelected.teacher_comment || '');
+        }
+      }
     } catch (err) {
       console.error('Failed to load submissions');
     }
@@ -451,6 +482,99 @@ export const AssignmentPage = () => {
       addAlert('Попытка удалена', 'success');
     } catch (err: any) {
       addAlert(err.response?.data?.detail || 'Ошибка удаления попытки', 'error');
+    }
+  };
+
+  const handleOpenAnnotator = async (file: SubmissionFile, replaceFileId: number | null = null) => {
+    if (!selectedSubmission) {
+      return;
+    }
+
+    setPreparingReviewFileId(file.id);
+    try {
+      const preparedAsset = await prepareSubmissionFileReview(selectedSubmission.id, file.id);
+      setReviewAsset(preparedAsset);
+      setReviewSubmissionId(selectedSubmission.id);
+      setFeedbackFileToReplaceId(replaceFileId);
+      setIsAnnotatorOpen(true);
+    } catch (err: any) {
+      addAlert(err.response?.data?.detail || 'Не удалось подготовить файл к проверке', 'error');
+    } finally {
+      setPreparingReviewFileId(null);
+    }
+  };
+
+  const handleCloseAnnotator = () => {
+    setIsAnnotatorOpen(false);
+    setReviewAsset(null);
+    setReviewSubmissionId(null);
+    setFeedbackFileToReplaceId(null);
+  };
+
+  const handleAnnotatorSaved = async () => {
+    if (!reviewSubmissionId) {
+      return;
+    }
+    await loadAllSubmissions(reviewSubmissionId);
+  };
+
+  const handleDownloadFeedbackFile = async (feedbackFile: SubmissionFeedbackFile) => {
+    setDownloadingFeedbackFileId(feedbackFile.id);
+    try {
+      const blob = await downloadSubmissionFeedbackFile(feedbackFile.submission_id, feedbackFile.id);
+      const objectUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = feedbackFile.file_name;
+      document.body.appendChild(link);
+      link.click();
+      window.URL.revokeObjectURL(objectUrl);
+      document.body.removeChild(link);
+    } catch (err: any) {
+      addAlert(err.response?.data?.detail || 'Не удалось скачать файл преподавателя', 'error');
+    } finally {
+      setDownloadingFeedbackFileId(null);
+    }
+  };
+
+  const handleEditFeedbackFile = async (feedbackFile: SubmissionFeedbackFile) => {
+    if (!selectedSubmission) {
+      return;
+    }
+
+    if (!feedbackFile.source_submission_file_id) {
+      addAlert('Невозможно открыть редактирование: исходный файл не найден', 'warning');
+      return;
+    }
+
+    const sourceFile = selectedSubmission.files.find(
+      (file) => file.id === feedbackFile.source_submission_file_id
+    );
+    if (!sourceFile) {
+      addAlert('Невозможно открыть редактирование: исходный файл удален', 'warning');
+      return;
+    }
+
+    await handleOpenAnnotator(sourceFile, feedbackFile.id);
+  };
+
+  const handleDeleteFeedbackFile = async (feedbackFile: SubmissionFeedbackFile) => {
+    const confirmed = await confirm('Удалить файл с пометками преподавателя?');
+    if (!confirmed) return;
+
+    setDeletingFeedbackFileId(feedbackFile.id);
+    try {
+      await deleteSubmissionFeedbackFile(feedbackFile.submission_id, feedbackFile.id);
+      if (selectedSubmission) {
+        await loadAllSubmissions(selectedSubmission.id);
+      } else {
+        await loadAllSubmissions();
+      }
+      addAlert('Файл с пометками удален', 'success');
+    } catch (err: any) {
+      addAlert(err.response?.data?.detail || 'Не удалось удалить файл с пометками', 'error');
+    } finally {
+      setDeletingFeedbackFileId(null);
     }
   };
 
@@ -669,6 +793,8 @@ export const AssignmentPage = () => {
                 isArchived={isArchived}
                 onSubmit={handleSubmitAssignment}
                 onDeleteSubmission={handleDeleteSubmission}
+                onDownloadFeedbackFile={handleDownloadFeedbackFile}
+                downloadingFeedbackFileId={downloadingFeedbackFileId}
                 formatDate={formatDate}
               />
             ) : (
@@ -711,6 +837,13 @@ export const AssignmentPage = () => {
                   gradeComment={gradeComment}
                   setGradeComment={setGradeComment}
                   isArchived={isArchived}
+                  isPreparingReviewFileId={preparingReviewFileId}
+                  isDownloadingFeedbackFileId={downloadingFeedbackFileId}
+                  isDeletingFeedbackFileId={deletingFeedbackFileId}
+                  onOpenAnnotator={handleOpenAnnotator}
+                  onDownloadFeedbackFile={handleDownloadFeedbackFile}
+                  onEditFeedbackFile={handleEditFeedbackFile}
+                  onDeleteFeedbackFile={handleDeleteFeedbackFile}
                   onSubmit={handleGradeSubmission}
                 />
               </>
@@ -735,6 +868,15 @@ export const AssignmentPage = () => {
           </div>
         </div>
       </div>
+
+      <ReviewAnnotatorModal
+        isOpen={isAnnotatorOpen}
+        submissionId={reviewSubmissionId}
+        reviewAsset={reviewAsset}
+        feedbackFileToReplaceId={feedbackFileToReplaceId}
+        onClose={handleCloseAnnotator}
+        onSaved={handleAnnotatorSaved}
+      />
 
       <EditAssignmentModal
         isOpen={editModalOpen}

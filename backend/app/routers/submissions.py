@@ -1,27 +1,107 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Response
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, case
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 import json
 import os
+import mimetypes
 from ..database import get_db
 from ..models.user import User
 from ..models.course import Course, CourseMember
 from ..models.assignment import Assignment
-from ..models.submission import Submission, SubmissionFile
+from ..models.submission import (
+    Submission,
+    SubmissionFile,
+    SubmissionReviewAsset,
+    SubmissionFeedbackFile,
+)
 from ..schemas.submission import (
     SubmissionCreate,
     SubmissionGrade,
     SubmissionResponse,
     SubmissionFileResponse,
+    ReviewAssetResponse,
+    SubmissionFeedbackFileResponse,
 )
 from ..utils.auth import get_current_user
 from ..utils.file_upload import save_upload_file, delete_file
+from ..utils.document_conversion import (
+    is_word_file,
+    is_pdf_file,
+    is_image_file,
+    get_review_kind,
+    convert_word_to_pdf,
+    ConversionError,
+)
 from ..utils.websocket import manager
 
 router = APIRouter(prefix="/submissions", tags=["submissions"])
+
+
+def _guess_mime_type(file_name: str, fallback: str = "application/octet-stream") -> str:
+    guessed, _ = mimetypes.guess_type(file_name)
+    return guessed or fallback
+
+
+def _to_abs_path(file_path: str) -> str:
+    return file_path if os.path.isabs(file_path) else os.path.join(os.getcwd(), file_path)
+
+
+def _is_submission_teacher(submission: Submission, user_id: int, db: Session) -> bool:
+    assignment = db.query(Assignment).filter(Assignment.id == submission.assignment_id).first()
+    if not assignment:
+        return False
+    course = db.query(Course).filter(Course.id == assignment.course_id).first()
+    return bool(course and course.creator_id == user_id)
+
+
+def _assert_submission_author_or_teacher(submission: Submission, user_id: int, db: Session):
+    if submission.student_id == user_id:
+        return
+    if _is_submission_teacher(submission, user_id, db):
+        return
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Доступ запрещен"
+    )
+
+
+def _assert_submission_teacher(submission: Submission, user_id: int, db: Session):
+    if not _is_submission_teacher(submission, user_id, db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Только преподаватель может выполнять это действие"
+        )
+
+
+def _ensure_word_review_asset(submission_file: SubmissionFile, db: Session) -> SubmissionReviewAsset:
+    if submission_file.review_asset:
+        return submission_file.review_asset
+
+    try:
+        review_path, review_name = convert_word_to_pdf(
+            source_file_path=submission_file.file_path,
+            source_file_name=submission_file.file_name,
+        )
+    except ConversionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(exc),
+        )
+
+    review_asset = SubmissionReviewAsset(
+        submission_file_id=submission_file.id,
+        review_file_path=review_path,
+        review_file_name=review_name,
+        mime_type="application/pdf",
+    )
+    db.add(review_asset)
+    db.commit()
+    db.refresh(review_asset)
+    db.refresh(submission_file)
+    return review_asset
 
 
 @router.post("/assignments/{assignment_id}/submit", response_model=SubmissionResponse, status_code=status.HTTP_201_CREATED)
@@ -479,6 +559,26 @@ async def upload_submission_file(
     db.commit()
     db.refresh(submission_file)
 
+    # Для Word файлов создаем PDF
+    if is_word_file(submission_file.file_name):
+        try:
+            review_path, review_name = convert_word_to_pdf(
+                source_file_path=submission_file.file_path,
+                source_file_name=submission_file.file_name,
+            )
+            review_asset = SubmissionReviewAsset(
+                submission_file_id=submission_file.id,
+                review_file_path=review_path,
+                review_file_name=review_name,
+                mime_type="application/pdf",
+            )
+            db.add(review_asset)
+            db.commit()
+        except ConversionError as exc:
+            print(f"[Word->PDF] Conversion failed for file {submission_file.id}: {exc}")
+        finally:
+            db.refresh(submission_file)
+
     db.refresh(submission)
     assignment = db.query(Assignment).filter(Assignment.id == submission.assignment_id).first()
 
@@ -500,6 +600,330 @@ async def upload_submission_file(
         "file_name": submission_file.file_name,
         "message": "File uploaded successfully"
     }
+
+
+@router.post("/{submission_id}/files/{file_id}/prepare-review", response_model=ReviewAssetResponse)
+def prepare_submission_file_review(
+    submission_id: int,
+    file_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    submission = db.query(Submission).filter(
+        Submission.id == submission_id,
+        Submission.is_deleted == 0,
+    ).first()
+    if not submission:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Сдача не найдена"
+        )
+
+    _assert_submission_teacher(submission, current_user.id, db)
+
+    submission_file = db.query(SubmissionFile).filter(
+        SubmissionFile.id == file_id,
+        SubmissionFile.submission_id == submission_id,
+    ).first()
+    if not submission_file:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Файл не найден"
+        )
+
+    source_mime = _guess_mime_type(submission_file.file_name)
+    converted = False
+    review_path = submission_file.file_path
+    review_name = submission_file.file_name
+    review_mime = source_mime
+
+    if is_word_file(submission_file.file_name):
+        review_asset = _ensure_word_review_asset(submission_file, db)
+        review_path = review_asset.review_file_path
+        review_name = review_asset.review_file_name
+        review_mime = review_asset.mime_type
+        converted = True
+    elif not (is_pdf_file(submission_file.file_name) or is_image_file(submission_file.file_name)):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Формат файла не поддерживается для проверки"
+        )
+
+    return ReviewAssetResponse(
+        submission_file_id=submission_file.id,
+        source_file_name=submission_file.file_name,
+        source_mime_type=source_mime,
+        review_file_path=review_path,
+        review_file_name=review_name,
+        review_mime_type=review_mime,
+        review_kind=get_review_kind(submission_file.file_name),
+        is_converted_from_word=converted,
+    )
+
+
+@router.post("/{submission_id}/feedback-files", response_model=SubmissionFeedbackFileResponse, status_code=status.HTTP_201_CREATED)
+async def upload_submission_feedback_file(
+    submission_id: int,
+    file: UploadFile = File(...),
+    source_submission_file_id: Optional[int] = Form(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    submission = db.query(Submission).filter(
+        Submission.id == submission_id,
+        Submission.is_deleted == 0,
+    ).first()
+    if not submission:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Сдача не найдена"
+        )
+
+    _assert_submission_teacher(submission, current_user.id, db)
+
+    if source_submission_file_id is not None:
+        source_file = db.query(SubmissionFile).filter(
+            SubmissionFile.id == source_submission_file_id,
+            SubmissionFile.submission_id == submission_id,
+        ).first()
+        if not source_file:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Исходный файл для обратной связи не найден"
+            )
+
+    feedback_path, feedback_name = save_upload_file(file)
+    feedback_record = SubmissionFeedbackFile(
+        submission_id=submission_id,
+        teacher_id=current_user.id,
+        source_submission_file_id=source_submission_file_id,
+        file_path=feedback_path,
+        file_name=feedback_name,
+        mime_type=_guess_mime_type(feedback_name),
+    )
+    db.add(feedback_record)
+    db.commit()
+    db.refresh(feedback_record)
+
+    db.refresh(submission)
+    assignment = db.query(Assignment).filter(Assignment.id == submission.assignment_id).first()
+    if not assignment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Задание не найдено"
+        )
+    response = SubmissionResponse.model_validate(submission)
+    student = db.query(User).filter(User.id == submission.student_id).first()
+    response.student_name = student.username if student else None
+
+    await manager.broadcast_to_assignment(
+        assignment.id,
+        {
+            "type": "submission_updated",
+            "data": response.model_dump(mode='json')
+        }
+    )
+
+    return SubmissionFeedbackFileResponse.model_validate(feedback_record)
+
+
+@router.get("/{submission_id}/feedback-files", response_model=List[SubmissionFeedbackFileResponse])
+def get_submission_feedback_files(
+    submission_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    submission = db.query(Submission).filter(
+        Submission.id == submission_id,
+        Submission.is_deleted == 0,
+    ).first()
+    if not submission:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Сдача не найдена"
+        )
+
+    _assert_submission_author_or_teacher(submission, current_user.id, db)
+
+    feedback_files = db.query(SubmissionFeedbackFile).filter(
+        SubmissionFeedbackFile.submission_id == submission_id
+    ).order_by(SubmissionFeedbackFile.created_at.desc()).all()
+
+    return [SubmissionFeedbackFileResponse.model_validate(item) for item in feedback_files]
+
+
+@router.get("/{submission_id}/feedback-files/{feedback_file_id}/download")
+async def download_submission_feedback_file(
+    submission_id: int,
+    feedback_file_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    submission = db.query(Submission).filter(
+        Submission.id == submission_id,
+        Submission.is_deleted == 0,
+    ).first()
+    if not submission:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Сдача не найдена"
+        )
+
+    _assert_submission_author_or_teacher(submission, current_user.id, db)
+
+    feedback_file = db.query(SubmissionFeedbackFile).filter(
+        SubmissionFeedbackFile.id == feedback_file_id,
+        SubmissionFeedbackFile.submission_id == submission_id,
+    ).first()
+    if not feedback_file:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Файл обратной связи не найден"
+        )
+
+    abs_file_path = _to_abs_path(feedback_file.file_path)
+    if not os.path.exists(abs_file_path):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Файл не найден на сервере"
+        )
+
+    return FileResponse(
+        path=abs_file_path,
+        media_type="application/octet-stream",
+        filename=feedback_file.file_name,
+    )
+
+
+@router.put("/{submission_id}/feedback-files/{feedback_file_id}", response_model=SubmissionFeedbackFileResponse)
+async def replace_submission_feedback_file(
+    submission_id: int,
+    feedback_file_id: int,
+    file: UploadFile = File(...),
+    source_submission_file_id: Optional[int] = Form(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    submission = db.query(Submission).filter(
+        Submission.id == submission_id,
+        Submission.is_deleted == 0,
+    ).first()
+    if not submission:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Сдача не найдена"
+        )
+
+    _assert_submission_teacher(submission, current_user.id, db)
+
+    feedback_file = db.query(SubmissionFeedbackFile).filter(
+        SubmissionFeedbackFile.id == feedback_file_id,
+        SubmissionFeedbackFile.submission_id == submission_id,
+    ).first()
+    if not feedback_file:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Файл обратной связи не найден"
+        )
+
+    if source_submission_file_id is not None:
+        source_file = db.query(SubmissionFile).filter(
+            SubmissionFile.id == source_submission_file_id,
+            SubmissionFile.submission_id == submission_id,
+        ).first()
+        if not source_file:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Исходный файл для обратной связи не найден"
+            )
+        feedback_file.source_submission_file_id = source_submission_file_id
+
+    old_file_path = feedback_file.file_path
+    new_file_path, new_file_name = save_upload_file(file)
+    feedback_file.file_path = new_file_path
+    feedback_file.file_name = new_file_name
+    feedback_file.mime_type = _guess_mime_type(new_file_name)
+
+    db.commit()
+    db.refresh(feedback_file)
+    delete_file(old_file_path)
+
+    db.refresh(submission)
+    assignment = db.query(Assignment).filter(Assignment.id == submission.assignment_id).first()
+    if not assignment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Задание не найдено"
+        )
+    response = SubmissionResponse.model_validate(submission)
+    student = db.query(User).filter(User.id == submission.student_id).first()
+    response.student_name = student.username if student else None
+
+    await manager.broadcast_to_assignment(
+        assignment.id,
+        {
+            "type": "submission_updated",
+            "data": response.model_dump(mode='json')
+        }
+    )
+
+    return SubmissionFeedbackFileResponse.model_validate(feedback_file)
+
+
+@router.delete("/{submission_id}/feedback-files/{feedback_file_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_submission_feedback_file(
+    submission_id: int,
+    feedback_file_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    submission = db.query(Submission).filter(
+        Submission.id == submission_id,
+        Submission.is_deleted == 0,
+    ).first()
+    if not submission:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Сдача не найдена"
+        )
+
+    _assert_submission_teacher(submission, current_user.id, db)
+
+    feedback_file = db.query(SubmissionFeedbackFile).filter(
+        SubmissionFeedbackFile.id == feedback_file_id,
+        SubmissionFeedbackFile.submission_id == submission_id,
+    ).first()
+    if not feedback_file:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Файл обратной связи не найден"
+        )
+
+    feedback_path = feedback_file.file_path
+    db.delete(feedback_file)
+    db.commit()
+    delete_file(feedback_path)
+
+    db.refresh(submission)
+    assignment = db.query(Assignment).filter(Assignment.id == submission.assignment_id).first()
+    if not assignment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Задание не найдено"
+        )
+    response = SubmissionResponse.model_validate(submission)
+    student = db.query(User).filter(User.id == submission.student_id).first()
+    response.student_name = student.username if student else None
+
+    await manager.broadcast_to_assignment(
+        assignment.id,
+        {
+            "type": "submission_updated",
+            "data": response.model_dump(mode='json')
+        }
+    )
+
+    return None
 
 
 @router.delete("/{submission_id}/files/{file_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -531,6 +955,14 @@ async def delete_submission_file(
 
     # Удаление файла из файловой системы
     delete_file(file_record.file_path)
+    if file_record.review_asset:
+        delete_file(file_record.review_asset.review_file_path)
+
+    linked_feedback = db.query(SubmissionFeedbackFile).filter(
+        SubmissionFeedbackFile.source_submission_file_id == file_record.id
+    ).all()
+    for feedback in linked_feedback:
+        feedback.source_submission_file_id = None
 
     # Удаление записи из БД
     db.delete(file_record)

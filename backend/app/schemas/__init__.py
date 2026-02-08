@@ -7,6 +7,9 @@ from .submission import (
     SubmissionGrade,
     SubmissionResponse,
     SubmissionFileResponse,
+    SubmissionFeedbackFileResponse,
+    SubmissionReviewAssetResponse,
+    ReviewAssetResponse,
 )
 
 __all__ = [
@@ -29,4 +32,7 @@ __all__ = [
     "SubmissionGrade",
     "SubmissionResponse",
     "SubmissionFileResponse",
+    "SubmissionFeedbackFileResponse",
+    "SubmissionReviewAssetResponse",
+    "ReviewAssetResponse",
 ]

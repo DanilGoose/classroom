@@ -17,6 +17,8 @@ import type {
   Submission,
   CreateSubmissionData,
   GradeSubmissionData,
+  ReviewAsset,
+  SubmissionFeedbackFile,
 } from '../types';
 
 // Auth
@@ -234,6 +236,72 @@ export const markSubmissionViewed = async (submissionId: number): Promise<Submis
 export const getMyAttemptsInfo = async (assignmentId: number): Promise<{ total_attempts: number; max_attempts: number | null }> => {
   const response = await axios.get(`/submissions/assignments/${assignmentId}/attempts-info`);
   return response.data;
+};
+
+export const prepareSubmissionFileReview = async (
+  submissionId: number,
+  fileId: number
+): Promise<ReviewAsset> => {
+  const response = await axios.post(`/submissions/${submissionId}/files/${fileId}/prepare-review`);
+  return response.data;
+};
+
+export const uploadSubmissionFeedbackFile = async (
+  submissionId: number,
+  file: File,
+  sourceSubmissionFileId?: number
+): Promise<SubmissionFeedbackFile> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (sourceSubmissionFileId !== undefined) {
+    formData.append('source_submission_file_id', String(sourceSubmissionFileId));
+  }
+  const response = await axios.post(`/submissions/${submissionId}/feedback-files`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  return response.data;
+};
+
+export const downloadSubmissionFeedbackFile = async (
+  submissionId: number,
+  feedbackFileId: number
+): Promise<Blob> => {
+  const response = await axios.get(`/submissions/${submissionId}/feedback-files/${feedbackFileId}/download`, {
+    responseType: 'blob',
+  });
+  return response.data;
+};
+
+export const replaceSubmissionFeedbackFile = async (
+  submissionId: number,
+  feedbackFileId: number,
+  file: File,
+  sourceSubmissionFileId?: number
+): Promise<SubmissionFeedbackFile> => {
+  const formData = new FormData();
+  formData.append('file', file);
+  if (sourceSubmissionFileId !== undefined) {
+    formData.append('source_submission_file_id', String(sourceSubmissionFileId));
+  }
+  const response = await axios.put(
+    `/submissions/${submissionId}/feedback-files/${feedbackFileId}`,
+    formData,
+    {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }
+  );
+  return response.data;
+};
+
+export const deleteSubmissionFeedbackFile = async (
+  submissionId: number,
+  feedbackFileId: number
+): Promise<void> => {
+  await axios.delete(`/submissions/${submissionId}/feedback-files/${feedbackFileId}`);
 };
 
 // Admin

@@ -1,5 +1,10 @@
 import { useState } from 'react';
-import type { Assignment, Submission } from '../../types';
+import type {
+  Assignment,
+  Submission,
+  SubmissionFile,
+  SubmissionFeedbackFile
+} from '../../types';
 import { getFileUrl } from '../../api/axios';
 import { isSubmittedOnTime } from '../../utils/deadline';
 import { FullTextModal } from '../FullTextModal';
@@ -12,6 +17,13 @@ interface GradingFormProps {
   gradeComment: string;
   setGradeComment: (comment: string) => void;
   isArchived: boolean;
+  isPreparingReviewFileId: number | null;
+  isDownloadingFeedbackFileId: number | null;
+  isDeletingFeedbackFileId: number | null;
+  onOpenAnnotator: (file: SubmissionFile) => void;
+  onDownloadFeedbackFile: (file: SubmissionFeedbackFile) => void;
+  onEditFeedbackFile: (file: SubmissionFeedbackFile) => void;
+  onDeleteFeedbackFile: (file: SubmissionFeedbackFile) => void;
   onSubmit: (e: React.FormEvent) => void;
 }
 
@@ -23,6 +35,13 @@ export const GradingForm = ({
   gradeComment,
   setGradeComment,
   isArchived,
+  isPreparingReviewFileId,
+  isDownloadingFeedbackFileId,
+  isDeletingFeedbackFileId,
+  onOpenAnnotator,
+  onDownloadFeedbackFile,
+  onEditFeedbackFile,
+  onDeleteFeedbackFile,
   onSubmit,
 }: GradingFormProps) => {
   const [fullTextModalOpen, setFullTextModalOpen] = useState(false);
@@ -85,17 +104,75 @@ export const GradingForm = ({
         {selectedSubmission.files && selectedSubmission.files.length > 0 && (
           <div>
             <p className="text-xs sm:text-sm text-text-secondary mb-2">Файлы студента:</p>
-            <div className="flex flex-col gap-1.5 sm:gap-2">
+            <div className="flex flex-col gap-2">
               {selectedSubmission.files.map((file) => (
-                <a
-                  key={file.id}
-                  href={getFileUrl(file.file_path)}
-                  download={file.file_name}
-                  rel="noopener noreferrer"
-                  className="text-primary hover:text-primary-hover text-xs sm:text-sm break-all"
-                >
-                  {file.file_name}
-                </a>
+                <div key={file.id} className="flex items-center justify-between gap-2 bg-bg-primary p-2 rounded border border-border-color">
+                  <a
+                    href={getFileUrl(file.file_path)}
+                    download={file.file_name}
+                    rel="noopener noreferrer"
+                    className="text-primary hover:text-primary-hover text-xs sm:text-sm break-all flex-1 min-w-0"
+                  >
+                    {file.file_name}
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => onOpenAnnotator(file)}
+                    disabled={isArchived || isPreparingReviewFileId === file.id}
+                    className="btn-secondary text-xs whitespace-nowrap"
+                  >
+                    {isPreparingReviewFileId === file.id ? 'Подготовка...' : 'Проверить'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {selectedSubmission.feedback_files && selectedSubmission.feedback_files.length > 0 && (
+          <div>
+            <p className="text-xs sm:text-sm text-text-secondary mb-2">Файлы с пометками преподавателя:</p>
+            <div className="flex flex-col gap-2">
+              {selectedSubmission.feedback_files.map((feedbackFile) => (
+                <div key={feedbackFile.id} className="flex items-center justify-between gap-2 bg-bg-primary p-2 rounded border border-border-color">
+                  <span className="text-xs sm:text-sm text-text-primary break-all flex-1 min-w-0">
+                    {feedbackFile.file_name}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="btn-secondary text-xs whitespace-nowrap"
+                      onClick={() => onDownloadFeedbackFile(feedbackFile)}
+                      disabled={isDownloadingFeedbackFileId === feedbackFile.id}
+                    >
+                      {isDownloadingFeedbackFileId === feedbackFile.id ? 'Скачивание...' : 'Скачать'}
+                    </button>
+                    {!isArchived && (
+                      <>
+                        <button
+                          type="button"
+                          className="btn-secondary text-xs whitespace-nowrap"
+                          onClick={() => onEditFeedbackFile(feedbackFile)}
+                          disabled={
+                            isDeletingFeedbackFileId === feedbackFile.id ||
+                            !feedbackFile.source_submission_file_id ||
+                            isPreparingReviewFileId === feedbackFile.source_submission_file_id
+                          }
+                        >
+                          {isPreparingReviewFileId === feedbackFile.source_submission_file_id ? 'Подготовка...' : 'Изменить'}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary text-xs whitespace-nowrap text-red-400"
+                          onClick={() => onDeleteFeedbackFile(feedbackFile)}
+                          disabled={isDeletingFeedbackFileId === feedbackFile.id}
+                        >
+                          {isDeletingFeedbackFileId === feedbackFile.id ? 'Удаление...' : 'Удалить'}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
               ))}
             </div>
           </div>

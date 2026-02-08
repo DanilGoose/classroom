@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     UPLOAD_DIR: str = "./uploads"
     MAX_FILE_SIZE_MB: int = 50
+    LIBREOFFICE_BIN: str = "soffice"
     # Контроль доступа к API и документации
     DOCS_ENABLED: bool = True
     ENFORCE_ORIGIN: bool = False

@@ -41,7 +41,7 @@ async def enforce_origin(request: Request, call_next):
     """
     if settings.ENFORCE_ORIGIN and request.url.path.startswith("/api"):
         origin = request.headers.get("origin")
-        if not origin or origin not in settings.ALLOWED_ORIGINS:
+        if origin and origin not in settings.ALLOWED_ORIGINS:
             return JSONResponse(
                 status_code=403,
                 content={"detail": "Origin is not allowed"},

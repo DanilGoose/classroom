@@ -1,4 +1,5 @@
 from .user import User
+from .pending_registration import PendingRegistration
 from .course import Course, CourseMember
 from .assignment import Assignment, AssignmentFile
 from .assignment_view import AssignmentView
@@ -7,6 +8,7 @@ from .submission import Submission, SubmissionFile, SubmissionReviewAsset, Submi
 
 __all__ = [
     "User",
+    "PendingRegistration",
     "Course",
     "CourseMember",
     "Assignment",

@@ -27,8 +27,16 @@ export const login = async (data: LoginData): Promise<AuthResponse> => {
   return response.data;
 };
 
-export const register = async (data: RegisterData): Promise<AuthResponse> => {
-  const response = await axios.post('/auth/register', data);
+export const register = async (data: RegisterData): Promise<{ message: string }> => {
+  const response = await axios.post('/auth/register/request-code', data);
+  return response.data;
+};
+
+export const confirmRegistration = async (
+  email: string,
+  code: string
+): Promise<AuthResponse> => {
+  const response = await axios.post('/auth/register', { email, code });
   return response.data;
 };
 
@@ -44,6 +52,58 @@ export const updateProfile = async (data: { email?: string; username?: string })
 
 export const updatePassword = async (data: { old_password: string; new_password: string }): Promise<{ message: string }> => {
   const response = await axios.put('/auth/password', data);
+  return response.data;
+};
+
+export const requestPasswordResetCode = async (email: string): Promise<{ message: string }> => {
+  const response = await axios.post('/auth/password-reset/request-code', { email });
+  return response.data;
+};
+
+export const confirmPasswordReset = async (
+  email: string,
+  code: string,
+  new_password: string
+): Promise<{ message: string }> => {
+  const response = await axios.post('/auth/password-reset/confirm', { email, code, new_password });
+  return response.data;
+};
+
+export const verifyEmail = async (code: string): Promise<User> => {
+  const response = await axios.post('/auth/verify-email', { code });
+  return response.data;
+};
+
+export const resendVerificationCode = async (): Promise<{ message: string }> => {
+  const response = await axios.post('/auth/resend-verification');
+  return response.data;
+};
+
+export const requestEmailChangeOldCode = async (): Promise<{ message: string }> => {
+  const response = await axios.post('/auth/email-change/request-old-code');
+  return response.data;
+};
+
+export const verifyEmailChangeOldCode = async (code: string): Promise<{ message: string }> => {
+  const response = await axios.post('/auth/email-change/verify-old-code', { code });
+  return response.data;
+};
+
+export const requestEmailChangeNewCode = async (
+  oldCode: string,
+  newEmail: string
+): Promise<{ message: string }> => {
+  const response = await axios.post('/auth/email-change/request-new-code', {
+    old_code: oldCode,
+    new_email: newEmail,
+  });
+  return response.data;
+};
+
+export const confirmEmailChangeNew = async (newCode: string): Promise<User> => {
+  const response = await axios.post('/auth/email-change/confirm-new', {
+    new_code: newCode,
+  });
   return response.data;
 };
 

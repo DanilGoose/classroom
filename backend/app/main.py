@@ -4,12 +4,13 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
 import os
 from pathlib import Path
-from .database import engine, Base
+from .database import engine, Base, run_startup_migrations
 from .routers import auth, courses, assignments, chat, admin, submissions, websocket
 from .config import settings
 
 # Создание таблиц
 Base.metadata.create_all(bind=engine)
+run_startup_migrations()
 
 # Создание директории для загрузок
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)

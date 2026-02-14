@@ -23,6 +23,16 @@ services:
       - DOCS_ENABLED=${DOCS_ENABLED:-false}
       - ENFORCE_ORIGIN=${ENFORCE_ORIGIN:-true}
       - 'ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-["https://localhost","http://localhost"]}'
+      - EMAIL_VERIFICATION_EXPIRE_MINUTES=${EMAIL_VERIFICATION_EXPIRE_MINUTES:-30}
+      - EMAIL_VERIFICATION_RESEND_SECONDS=${EMAIL_VERIFICATION_RESEND_SECONDS:-60}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
+      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-no-reply@classroom.local}
+      - SMTP_FROM_NAME=${SMTP_FROM_NAME:-Classroom}
+      - SMTP_USE_TLS=${SMTP_USE_TLS:-true}
+      - SMTP_USE_SSL=${SMTP_USE_SSL:-false}
     restart: unless-stopped
     container_name: classroom-app
     networks:

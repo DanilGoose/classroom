@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { PDFDocument } from 'pdf-lib';
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
@@ -50,6 +50,7 @@ interface DragTextState {
   pageIndex: number;
   offsetX: number;
   offsetY: number;
+  scale: number;
 }
 
 interface ResizeTextState {
@@ -59,6 +60,7 @@ interface ResizeTextState {
   startHeight: number;
   startX: number;
   startY: number;
+  scale: number;
 }
 
 const buildAssetUrl = (relativePath: string) => {
@@ -97,6 +99,10 @@ const TEXT_BOX_DEFAULT_WIDTH = 260;
 const TEXT_BOX_DEFAULT_HEIGHT = 120;
 const TEXT_PADDING_X = 8;
 const TEXT_PADDING_Y = 4;
+const ZOOM_MIN = 100;
+const ZOOM_MAX = 300;
+const ZOOM_STEP = 5;
+const FIT_WIDTH_OFFSET_PX = 24;
 
 export const ReviewAnnotatorModal = ({
   isOpen,
@@ -116,8 +122,11 @@ export const ReviewAnnotatorModal = ({
   const [activePageIndex, setActivePageIndex] = useState(0);
   const [textAnnotations, setTextAnnotations] = useState<TextAnnotation[]>([]);
   const [activeTextId, setActiveTextId] = useState<string | null>(null);
+  const [zoomPercent, setZoomPercent] = useState(ZOOM_MIN);
+  const [viewerWidth, setViewerWidth] = useState(0);
   const [, forceHistoryUpdate] = useState(0);
 
+  const viewerRef = useRef<HTMLDivElement | null>(null);
   const overlayRefs = useRef<Array<HTMLCanvasElement | null>>([]);
   const historyRef = useRef<Array<{ stack: string[]; index: number }>>([]);
   const textDragRef = useRef<DragTextState>({
@@ -125,6 +134,7 @@ export const ReviewAnnotatorModal = ({
     pageIndex: -1,
     offsetX: 0,
     offsetY: 0,
+    scale: 1,
   });
   const textResizeRef = useRef<ResizeTextState>({
     id: null,
@@ -133,6 +143,7 @@ export const ReviewAnnotatorModal = ({
     startHeight: 0,
     startX: 0,
     startY: 0,
+    scale: 1,
   });
   const drawingRef = useRef<DrawingState>({
     isDrawing: false,
@@ -147,6 +158,21 @@ export const ReviewAnnotatorModal = ({
   const activeTextAnnotation = activeTextId
     ? textAnnotations.find((item) => item.id === activeTextId) || null
     : null;
+  const maxPageWidth = useMemo(() => {
+    if (pages.length === 0) {
+      return 0;
+    }
+    return pages.reduce((maxWidth, page) => Math.max(maxWidth, page.width), 0);
+  }, [pages]);
+  const fitScale = useMemo(() => {
+    if (!maxPageWidth || viewerWidth <= 0) {
+      return 1;
+    }
+    const availableWidth = Math.max(viewerWidth - FIT_WIDTH_OFFSET_PX, 1);
+    return Math.min(availableWidth / maxPageWidth, 1);
+  }, [maxPageWidth, viewerWidth]);
+  const displayScale = fitScale * (zoomPercent / 100);
+  const displayScalePercent = Math.round(displayScale * 100);
 
   const resetCanvasState = () => {
     overlayRefs.current = [];
@@ -156,6 +182,7 @@ export const ReviewAnnotatorModal = ({
       pageIndex: -1,
       offsetX: 0,
       offsetY: 0,
+      scale: 1,
     };
     textResizeRef.current = {
       id: null,
@@ -164,6 +191,7 @@ export const ReviewAnnotatorModal = ({
       startHeight: 0,
       startX: 0,
       startY: 0,
+      scale: 1,
     };
     drawingRef.current = {
       isDrawing: false,
@@ -174,7 +202,19 @@ export const ReviewAnnotatorModal = ({
     setActivePageIndex(0);
     setActiveTextId(null);
     setTextAnnotations([]);
+    setZoomPercent(ZOOM_MIN);
     forceHistoryUpdate(0);
+  };
+
+  const getPageScale = (element: HTMLElement | null): number => {
+    if (!element) {
+      return 1;
+    }
+    const rawScale = Number(element.dataset.pageScale ?? '1');
+    if (!Number.isFinite(rawScale) || rawScale <= 0) {
+      return 1;
+    }
+    return rawScale;
   };
 
   const updateTextAnnotation = (id: string, updates: Partial<TextAnnotation>) => {
@@ -421,6 +461,31 @@ export const ReviewAnnotatorModal = ({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [isOpen, onClose]);
 
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const updateViewerWidth = () => {
+      const width = viewerRef.current?.clientWidth ?? 0;
+      setViewerWidth(width);
+    };
+
+    updateViewerWidth();
+
+    const observer = new ResizeObserver(() => {
+      updateViewerWidth();
+    });
+
+    if (viewerRef.current) {
+      observer.observe(viewerRef.current);
+    }
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [isOpen, pages.length]);
+
   const getCanvasPoint = (canvas: HTMLCanvasElement, event: React.PointerEvent<HTMLCanvasElement>) => {
     const rect = canvas.getBoundingClientRect();
     const x = (event.clientX - rect.left) * (canvas.width / rect.width);
@@ -545,16 +610,18 @@ export const ReviewAnnotatorModal = ({
     event.stopPropagation();
     setActiveTextId(annotation.id);
 
-    const pageElement = event.currentTarget.closest('[data-review-page]');
+    const pageElement = event.currentTarget.closest('[data-review-page]') as HTMLElement | null;
     if (!pageElement) {
       return;
     }
     const rect = pageElement.getBoundingClientRect();
+    const pageScale = getPageScale(pageElement);
     textDragRef.current = {
       id: annotation.id,
       pageIndex: annotation.pageIndex,
-      offsetX: event.clientX - rect.left - annotation.x,
-      offsetY: event.clientY - rect.top - annotation.y,
+      offsetX: (event.clientX - rect.left) / pageScale - annotation.x,
+      offsetY: (event.clientY - rect.top) / pageScale - annotation.y,
+      scale: pageScale,
     };
 
     const onMove = (moveEvent: PointerEvent) => {
@@ -563,8 +630,9 @@ export const ReviewAnnotatorModal = ({
         return;
       }
       const pageRect = pageElement.getBoundingClientRect();
-      const nextX = moveEvent.clientX - pageRect.left - textDragRef.current.offsetX;
-      const nextY = moveEvent.clientY - pageRect.top - textDragRef.current.offsetY;
+      const scale = textDragRef.current.scale || 1;
+      const nextX = (moveEvent.clientX - pageRect.left) / scale - textDragRef.current.offsetX;
+      const nextY = (moveEvent.clientY - pageRect.top) / scale - textDragRef.current.offsetY;
 
       const clampedX = Math.max(0, Math.min(nextX, pageData.width - annotation.width));
       const clampedY = Math.max(0, Math.min(nextY, pageData.height - annotation.height));
@@ -577,6 +645,7 @@ export const ReviewAnnotatorModal = ({
         pageIndex: -1,
         offsetX: 0,
         offsetY: 0,
+        scale: 1,
       };
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
@@ -594,6 +663,9 @@ export const ReviewAnnotatorModal = ({
     event.stopPropagation();
     setActiveTextId(annotation.id);
 
+    const pageElement = event.currentTarget.closest('[data-review-page]') as HTMLElement | null;
+    const pageScale = getPageScale(pageElement);
+
     textResizeRef.current = {
       id: annotation.id,
       pageIndex: annotation.pageIndex,
@@ -601,6 +673,7 @@ export const ReviewAnnotatorModal = ({
       startHeight: annotation.height,
       startX: event.clientX,
       startY: event.clientY,
+      scale: pageScale,
     };
 
     const onMove = (moveEvent: PointerEvent) => {
@@ -608,8 +681,9 @@ export const ReviewAnnotatorModal = ({
       if (!pageData) {
         return;
       }
-      const deltaX = moveEvent.clientX - textResizeRef.current.startX;
-      const deltaY = moveEvent.clientY - textResizeRef.current.startY;
+      const scale = textResizeRef.current.scale || 1;
+      const deltaX = (moveEvent.clientX - textResizeRef.current.startX) / scale;
+      const deltaY = (moveEvent.clientY - textResizeRef.current.startY) / scale;
 
       const maxWidth = pageData.width - annotation.x;
       const maxHeight = pageData.height - annotation.y;
@@ -634,6 +708,7 @@ export const ReviewAnnotatorModal = ({
         startHeight: 0,
         startX: 0,
         startY: 0,
+        scale: 1,
       };
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerup', onUp);
@@ -873,6 +948,27 @@ export const ReviewAnnotatorModal = ({
             />
             <span className="text-xs text-text-tertiary w-6">{lineWidth}</span>
           </label>
+          <label className="text-sm text-text-secondary flex items-center gap-2">
+            Масштаб
+            <input
+              type="range"
+              min={ZOOM_MIN}
+              max={ZOOM_MAX}
+              step={ZOOM_STEP}
+              value={zoomPercent}
+              onChange={(event) => setZoomPercent(Number(event.target.value))}
+              disabled={pages.length === 0}
+            />
+            <span className="text-xs text-text-tertiary w-12">{displayScalePercent}%</span>
+          </label>
+          <button
+            onClick={() => setZoomPercent(ZOOM_MIN)}
+            className="btn-secondary text-sm"
+            type="button"
+            disabled={zoomPercent === ZOOM_MIN}
+          >
+            По ширине
+          </button>
           {activeTool === 'text' && activeTextAnnotation && (
             <label className="text-sm text-text-secondary flex items-center gap-2">
               Размер текста
@@ -896,7 +992,7 @@ export const ReviewAnnotatorModal = ({
             type="button"
             disabled={!canUndo}
           >
-            Undo
+            Назад
           </button>
           <button
             onClick={handleRedo}
@@ -904,7 +1000,7 @@ export const ReviewAnnotatorModal = ({
             type="button"
             disabled={!canRedo}
           >
-            Redo
+            Вернуть
           </button>
           {activeTextAnnotation && (
             <button
@@ -920,7 +1016,7 @@ export const ReviewAnnotatorModal = ({
           </span>
         </div>
 
-        <div className="flex-1 overflow-auto p-4 sm:p-6">
+        <div ref={viewerRef} className="flex-1 overflow-auto p-4 sm:p-6">
           {isLoadingAsset ? (
             <div className="h-full flex items-center justify-center text-text-secondary">
               Подготовка файла для проверки...
@@ -931,112 +1027,128 @@ export const ReviewAnnotatorModal = ({
             </div>
           ) : (
             <div className="space-y-6">
-              {pages.map((page, index) => (
-                <div
-                  key={`review-page-${index}`}
-                  className={`mx-auto w-fit border rounded ${
-                    activePageIndex === index ? 'border-primary' : 'border-border-color'
-                  }`}
-                  data-review-page
-                  onClick={() => setActivePageIndex(index)}
-                >
-                  <div className="relative" style={{ width: page.width }}>
-                    <img
-                      src={page.baseDataUrl}
-                      alt={`Review page ${index + 1}`}
-                      className="block select-none"
-                      style={{ width: page.width, height: page.height }}
-                    />
-                    {textAnnotations
-                      .filter((item) => item.pageIndex === index)
-                      .map((item) => (
-                        <div
-                          key={item.id}
-                          className={`absolute z-20 ${
-                            activeTextId === item.id ? 'ring-2 ring-primary' : ''
-                          }`}
-                          style={{ left: item.x, top: item.y, width: item.width }}
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            setActiveTextId(item.id);
-                            setActivePageIndex(index);
-                          }}
-                        >
-                          <div className="flex items-center justify-between gap-1 mb-1">
-                            <button
-                              type="button"
-                              className="px-1.5 py-0.5 text-[10px] bg-bg-card border border-border-color rounded cursor-move"
-                              onPointerDown={(event) => startTextDrag(item, event)}
-                              title="Переместить"
-                            >
-                              Перетащить
-                            </button>
-                            <button
-                              type="button"
-                              className="px-1.5 py-0.5 text-[10px] bg-bg-card border border-border-color rounded text-red-400"
+              {pages.map((page, index) => {
+                const scaledWidth = page.width * displayScale;
+                const scaledHeight = page.height * displayScale;
+
+                return (
+                  <div
+                    key={`review-page-${index}`}
+                    className={`mx-auto border rounded ${
+                      activePageIndex === index ? 'border-primary' : 'border-border-color'
+                    }`}
+                    style={{ width: scaledWidth }}
+                    onClick={() => setActivePageIndex(index)}
+                  >
+                    <div className="relative" style={{ width: scaledWidth, height: scaledHeight }}>
+                      <div
+                        className="absolute left-0 top-0 origin-top-left"
+                        data-review-page
+                        data-page-scale={displayScale}
+                        style={{
+                          width: page.width,
+                          height: page.height,
+                          transform: `scale(${displayScale})`,
+                        }}
+                      >
+                        <img
+                          src={page.baseDataUrl}
+                          alt={`Review page ${index + 1}`}
+                          className="block select-none"
+                          style={{ width: page.width, height: page.height }}
+                        />
+                        {textAnnotations
+                          .filter((item) => item.pageIndex === index)
+                          .map((item) => (
+                            <div
+                              key={item.id}
+                              className={`absolute z-20 ${
+                                activeTextId === item.id ? 'ring-2 ring-primary' : ''
+                              }`}
+                              style={{ left: item.x, top: item.y, width: item.width }}
                               onClick={(event) => {
                                 event.stopPropagation();
-                                removeTextAnnotation(item.id);
+                                setActiveTextId(item.id);
+                                setActivePageIndex(index);
                               }}
-                              title="Удалить текст"
                             >
-                              Удалить
-                            </button>
-                          </div>
-                          <textarea
-                            value={item.text}
-                            onChange={(event) => updateTextAnnotation(item.id, { text: event.target.value })}
-                            onFocus={() => {
-                              setActiveTextId(item.id);
-                              setActivePageIndex(index);
-                            }}
-                            onBlur={() => {
-                              if (!item.text.trim()) {
-                                removeTextAnnotation(item.id);
-                              }
-                            }}
-                            className="w-full resize-none bg-transparent border border-border-color rounded px-2 py-1 text-text-primary"
-                            style={{
-                              height: item.height,
-                              fontSize: item.fontSize,
-                              lineHeight: 1.25,
-                              color: item.color,
-                            }}
-                            placeholder="Введите текст..."
-                            rows={1}
-                          />
-                          <button
-                            type="button"
-                            className="absolute -bottom-2 -right-2 w-4 h-4 rounded bg-primary border border-white cursor-se-resize"
-                            onPointerDown={(event) => startTextResize(item, event)}
-                            title="Изменить размер рамки"
-                          />
-                        </div>
-                      ))}
-                    <canvas
-                      ref={(node) => {
-                        overlayRefs.current[index] = node;
-                        if (node) {
-                          initializeHistoryForCanvas(index, node);
-                        }
-                      }}
-                      width={page.width}
-                      height={page.height}
-                      className="absolute inset-0 w-full h-full touch-none z-10"
-                      style={{ cursor: activeTool === 'text' ? 'text' : 'crosshair' }}
-                      onPointerDown={(event) => handleCanvasPointerDown(index, event)}
-                      onPointerMove={(event) => handleCanvasPointerMove(index, event)}
-                      onPointerUp={() => finishDrawing(index)}
-                      onPointerLeave={() => finishDrawing(index)}
-                    />
-                  </div>
-                  {pages.length > 1 && (
-                    <div className="px-3 py-2 text-xs text-text-secondary bg-bg-card border-t border-border-color">
-                      Страница {index + 1}
+                              <div className="flex items-center justify-between gap-1 mb-1">
+                                <button
+                                  type="button"
+                                  className="px-1.5 py-0.5 text-[10px] bg-bg-card border border-border-color rounded cursor-move"
+                                  onPointerDown={(event) => startTextDrag(item, event)}
+                                  title="Переместить"
+                                >
+                                  Перетащить
+                                </button>
+                                <button
+                                  type="button"
+                                  className="px-1.5 py-0.5 text-[10px] bg-bg-card border border-border-color rounded text-red-400"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    removeTextAnnotation(item.id);
+                                  }}
+                                  title="Удалить текст"
+                                >
+                                  Удалить
+                                </button>
+                              </div>
+                              <textarea
+                                value={item.text}
+                                onChange={(event) => updateTextAnnotation(item.id, { text: event.target.value })}
+                                onFocus={() => {
+                                  setActiveTextId(item.id);
+                                  setActivePageIndex(index);
+                                }}
+                                onBlur={() => {
+                                  if (!item.text.trim()) {
+                                    removeTextAnnotation(item.id);
+                                  }
+                                }}
+                                className="w-full resize-none bg-transparent border border-border-color rounded px-2 py-1 text-text-primary"
+                                style={{
+                                  height: item.height,
+                                  fontSize: item.fontSize,
+                                  lineHeight: 1.25,
+                                  color: item.color,
+                                }}
+                                placeholder="Введите текст..."
+                                rows={1}
+                              />
+                              <button
+                                type="button"
+                                className="absolute -bottom-2 -right-2 w-4 h-4 rounded bg-primary border border-white cursor-se-resize"
+                                onPointerDown={(event) => startTextResize(item, event)}
+                                title="Изменить размер рамки"
+                              />
+                            </div>
+                          ))}
+                        <canvas
+                          ref={(node) => {
+                            overlayRefs.current[index] = node;
+                            if (node) {
+                              initializeHistoryForCanvas(index, node);
+                            }
+                          }}
+                          width={page.width}
+                          height={page.height}
+                          className="absolute inset-0 w-full h-full touch-none z-10"
+                          style={{ cursor: activeTool === 'text' ? 'text' : 'crosshair' }}
+                          onPointerDown={(event) => handleCanvasPointerDown(index, event)}
+                          onPointerMove={(event) => handleCanvasPointerMove(index, event)}
+                          onPointerUp={() => finishDrawing(index)}
+                          onPointerLeave={() => finishDrawing(index)}
+                        />
+                      </div>
                     </div>
-                  )}
-                </div>
-              ))}
+                    {pages.length > 1 && (
+                      <div className="px-3 py-2 text-xs text-text-secondary bg-bg-card border-t border-border-color">
+                        Страница {index + 1}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

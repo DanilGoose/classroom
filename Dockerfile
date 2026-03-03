@@ -19,7 +19,7 @@ RUN npm run build
 FROM python:3.12-slim
 
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
     gcc \
     libreoffice-writer libreoffice-calc \
     && apt-get clean && rm -rf /var/lib/apt/lists/*

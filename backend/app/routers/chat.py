@@ -8,6 +8,7 @@ from ..models.assignment import Assignment
 from ..models.message import ChatMessage
 from ..schemas.message import MessageCreate, MessageResponse
 from ..utils.auth import get_current_user
+from ..utils.message_filter import sanitize_message
 from ..utils.websocket import manager
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -55,7 +56,7 @@ def get_assignment_messages(
             assignment_id=msg.assignment_id,
             user_id=msg.user_id,
             username=msg.user.username,
-            message=msg.message,
+            message=sanitize_message(msg.message),
             created_at=msg.created_at,
             is_deleted=msg.is_deleted
         ))
@@ -90,11 +91,13 @@ async def send_message(
             detail="Вы не являетесь участником этого курса"
         )
 
+    sanitized_message = sanitize_message(message_data.message)
+
     # Создание сообщения
     new_message = ChatMessage(
         assignment_id=assignment_id,
         user_id=current_user.id,
-        message=message_data.message
+        message=sanitized_message
     )
 
     db.add(new_message)

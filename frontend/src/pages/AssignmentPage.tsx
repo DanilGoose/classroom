@@ -342,8 +342,10 @@ export const AssignmentPage = () => {
       setMessages([...messages, message]);
       setNewMessage('');
       setTimeout(() => scrollToBottom(), 100);
-    } catch (err) {
-      addAlert('Ошибка отправки сообщения', 'error');
+    } catch (err: unknown) {
+      const errorDetail =
+        (err as { response?: { data?: { detail?: string } } }).response?.data?.detail;
+      addAlert(errorDetail || 'Ошибка отправки сообщения', 'error');
     } finally {
       setIsSendingMessage(false);
     }
